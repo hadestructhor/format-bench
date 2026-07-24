@@ -144,6 +144,9 @@ YAML, and `{"a": 1}` is not idiomatic YAML.
 `benches/convert/test.jsonl` — 2,025 cases, frozen, committed. `train.jsonl` — 625 cases for the worked
 example, sharing no inputs with the test set.
 
+A Hugging Face mirror can be published with `HF_TOKEN=hf_… bash scripts/publish-hf.sh`; it uploads the same
+files byte-for-byte, so the sha256 recorded in every run file still matches.
+
 | Axis | Values |
 |---|---|
 | **Directions** (9) | text→json · text→yaml · text→csv · json→yaml · json→csv · yaml→json · yaml→csv · csv→json · csv→yaml |
