@@ -1,0 +1,345 @@
+{
+  "_readme": "Curated model parameter counts, researched per-model (HF safetensors API / vendor cards). TWO sections: `models` maps a CANONICAL model -> {total, active} (active = params/token, MoE only; absent = dense); `aliases` maps a provider-specific run id '<provider>/<model-dir>' -> canonical. Aliases exist because one model ships under many ids ('-free'/':free' tiers, vendor prefixes) and must resolve to ONE size instead of being guessed from the name. Values are human strings ('46.7B','354M','1.6T') or null when genuinely undisclosed (Grok-4.5, KAT-Coder-Pro, big-pickle, mistral-nemotron). NOTE: Gemma-3n E2B/E4B totals are RAW params (5.44B/7.85B) - the 'E' figure is effective memory footprint, not MoE active. build-data.ts resolves alias -> canonical -> models.",
+  "models": {
+    "SmolLM2-135M-Instruct": {
+      "total": "135M"
+    },
+    "SmolLM2-360M-Instruct": {
+      "total": "362M"
+    },
+    "LFM2-350M": {
+      "total": "354M"
+    },
+    "LFM2-350M-Extract": {
+      "total": "354M"
+    },
+    "LFM2-350M-Math": {
+      "total": "354M"
+    },
+    "Luth-LFM2-350M": {
+      "total": "354M"
+    },
+    "LFM2.5-350M": {
+      "total": "354M"
+    },
+    "LFM2.5-230M": {
+      "total": "230M"
+    },
+    "lfm2.5-230m-fable-5": {
+      "total": "230M"
+    },
+    "Qwen2.5-0.5B-Instruct": {
+      "total": "494M"
+    },
+    "NuExtract-tiny-v1.5": {
+      "total": "494M"
+    },
+    "gemma-3-270m-it": {
+      "total": "268M"
+    },
+    "granite-4.0-h-350m": {
+      "total": "340M"
+    },
+    "Llama-3.2-1B-Instruct": {
+      "total": "1.24B"
+    },
+    "Llama-3.2-3B-Instruct": {
+      "total": "3.21B"
+    },
+    "Phi-4-mini-instruct": {
+      "total": "3.84B"
+    },
+    "Nemotron-Mini-4B-Instruct": {
+      "total": "4.19B"
+    },
+    "Gemma-3n-E2B-it": {
+      "total": "5.44B"
+    },
+    "Gemma-3n-E4B-it": {
+      "total": "7.85B"
+    },
+    "ALLaM-2-7B": {
+      "total": "7B"
+    },
+    "Llama-3.1-8B-Instruct": {
+      "total": "8.03B"
+    },
+    "Llama-3.1-Nemotron-Nano-8B-v1": {
+      "total": "8.03B"
+    },
+    "Nemotron-Nano-9B-v2": {
+      "total": "8.89B"
+    },
+    "SOLAR-10.7B-Instruct": {
+      "total": "10.7B"
+    },
+    "Ministral-3-14B-Instruct-2512": {
+      "total": "13.9B"
+    },
+    "gpt-oss-20b": {
+      "total": "21B",
+      "active": "3.6B"
+    },
+    "sarvam-m": {
+      "total": "23.6B"
+    },
+    "Gemma-4-26B-A4B-it": {
+      "total": "25.8B",
+      "active": "3.8B"
+    },
+    "DiffusionGemma-26B-A4B-it": {
+      "total": "25.8B",
+      "active": "3.8B"
+    },
+    "Qwen3.6-27B": {
+      "total": "27B"
+    },
+    "GLM-4.7-Flash": {
+      "total": "30B",
+      "active": "3B"
+    },
+    "Cohere-North-Mini-Code": {
+      "total": "30B",
+      "active": "3B"
+    },
+    "Gemma-4-31B-it": {
+      "total": "31.3B"
+    },
+    "Nemotron-3-Nano-30B-A3B": {
+      "total": "31.6B",
+      "active": "3.6B"
+    },
+    "Nemotron-3-Nano-Omni-30B-A3B-Reasoning": {
+      "total": "33B",
+      "active": "3B"
+    },
+    "Laguna-XS-2.1": {
+      "total": "33B",
+      "active": "3B"
+    },
+    "Seed-OSS-36B-Instruct": {
+      "total": "36.2B"
+    },
+    "Mixtral-8x7B-Instruct-v0.1": {
+      "total": "46.7B",
+      "active": "12.9B"
+    },
+    "Llama-3.3-Nemotron-Super-49B-v1": {
+      "total": "49.9B"
+    },
+    "Llama-3.3-Nemotron-Super-49B-v1.5": {
+      "total": "49.9B"
+    },
+    "Llama-3.1-70B-Instruct": {
+      "total": "70.6B"
+    },
+    "Llama-3.3-70B-Instruct": {
+      "total": "70.6B"
+    },
+    "Dracarys-Llama-3.1-70B": {
+      "total": "70.6B"
+    },
+    "Qwen3-Next-80B-A3B": {
+      "total": "80B",
+      "active": "3B"
+    },
+    "Stockmark-2-100B": {
+      "total": "96B"
+    },
+    "Llama-4-Scout-17B-16E": {
+      "total": "109B",
+      "active": "17B"
+    },
+    "gpt-oss-120b": {
+      "total": "117B",
+      "active": "5.1B"
+    },
+    "Laguna-S-2.1": {
+      "total": "118B",
+      "active": "8B"
+    },
+    "Mistral-Small-4-119B-2603": {
+      "total": "119B",
+      "active": "6B"
+    },
+    "Nemotron-3-Super-120B-A12B": {
+      "total": "120.6B",
+      "active": "12.7B"
+    },
+    "Qwen3.5-122B-A10B": {
+      "total": "122B",
+      "active": "10B"
+    },
+    "Mistral-Medium-3.5-128B": {
+      "total": "128B"
+    },
+    "Step-3.5-Flash": {
+      "total": "196B",
+      "active": "11B"
+    },
+    "Step-3.7-Flash": {
+      "total": "198B",
+      "active": "11B"
+    },
+    "MiniMax-M2.7": {
+      "total": "230B",
+      "active": "10B"
+    },
+    "DeepSeek-V4-Flash": {
+      "total": "284B",
+      "active": "13B"
+    },
+    "Tencent-Hy3": {
+      "total": "295B",
+      "active": "21B"
+    },
+    "MiMo-V2.5": {
+      "total": "310B",
+      "active": "15B"
+    },
+    "Llama-4-Maverick-17B-128E": {
+      "total": "400B",
+      "active": "17B"
+    },
+    "MiniMax-M3": {
+      "total": "428B",
+      "active": "23B"
+    },
+    "Nemotron-3-Ultra-550B-A55B": {
+      "total": "550B",
+      "active": "55B"
+    },
+    "Mistral-Large-3-675B-2512": {
+      "total": "675B",
+      "active": "41B"
+    },
+    "GLM-5.2": {
+      "total": "744B",
+      "active": "40B"
+    },
+    "Inkling": {
+      "total": "975B",
+      "active": "41B"
+    },
+    "DeepSeek-V4-Pro": {
+      "total": "1.6T",
+      "active": "49B"
+    },
+    "Grok-4.5": {
+      "total": null
+    },
+    "KAT-Coder-Pro-V2.5": {
+      "total": null
+    },
+    "big-pickle": {
+      "total": null
+    },
+    "mistral-nemotron": {
+      "total": null
+    },
+    "Laguna-M.1": {
+      "total": "225B",
+      "active": "23B"
+    },
+    "Laguna-XS.2": {
+      "total": "33B",
+      "active": "3B"
+    },
+    "Ling-3.0-flash": {
+      "total": "124B",
+      "active": "5.1B"
+    }
+  },
+  "aliases": {
+    "HuggingFaceTB/SmolLM2-135M-Instruct": "SmolLM2-135M-Instruct",
+    "HuggingFaceTB/SmolLM2-360M-Instruct": "SmolLM2-360M-Instruct",
+    "LiquidAI/LFM2-350M": "LFM2-350M",
+    "LiquidAI/LFM2-350M-Extract": "LFM2-350M-Extract",
+    "LiquidAI/LFM2-350M-Math": "LFM2-350M-Math",
+    "kurakurai/Luth-LFM2-350M": "Luth-LFM2-350M",
+    "LiquidAI/LFM2.5-350M": "LFM2.5-350M",
+    "LiquidAI/LFM2.5-230M": "LFM2.5-230M",
+    "AKMESSI/lfm2.5-230m-fable-5": "lfm2.5-230m-fable-5",
+    "Qwen/Qwen2.5-0.5B-Instruct": "Qwen2.5-0.5B-Instruct",
+    "numind/NuExtract-tiny-v1.5": "NuExtract-tiny-v1.5",
+    "google/gemma-3-270m-it": "gemma-3-270m-it",
+    "ibm-granite/granite-4.0-h-350m": "granite-4.0-h-350m",
+    "nvidia/meta_llama-3.2-1b-instruct": "Llama-3.2-1B-Instruct",
+    "nvidia/meta_llama-3.2-3b-instruct": "Llama-3.2-3B-Instruct",
+    "nvidia/microsoft_phi-4-mini-instruct": "Phi-4-mini-instruct",
+    "nvidia/nvidia_nemotron-mini-4b-instruct": "Nemotron-Mini-4B-Instruct",
+    "nvidia/google_gemma-3n-e2b-it": "Gemma-3n-E2B-it",
+    "nvidia/google_gemma-3n-e4b-it": "Gemma-3n-E4B-it",
+    "groq/allam-2-7b": "ALLaM-2-7B",
+    "nvidia/meta_llama-3.1-8b-instruct": "Llama-3.1-8B-Instruct",
+    "nvidia/nvidia_llama-3.1-nemotron-nano-8b-v1": "Llama-3.1-Nemotron-Nano-8B-v1",
+    "nvidia/nvidia_nvidia-nemotron-nano-9b-v2": "Nemotron-Nano-9B-v2",
+    "nvidia/upstage_solar-10.7b-instruct": "SOLAR-10.7B-Instruct",
+    "nvidia/mistralai_ministral-14b-instruct-2512": "Ministral-3-14B-Instruct-2512",
+    "nvidia/openai_gpt-oss-20b": "gpt-oss-20b",
+    "nvidia/sarvamai_sarvam-m": "sarvam-m",
+    "openrouter/google_gemma-4-26b-a4b-it_free": "Gemma-4-26B-A4B-it",
+    "nvidia/google_diffusiongemma-26b-a4b-it": "DiffusionGemma-26B-A4B-it",
+    "groq/qwen_qwen3.6-27b": "Qwen3.6-27B",
+    "zenmux/z-ai_glm-4.7-flash-free": "GLM-4.7-Flash",
+    "kilo/cohere_north-mini-code_free": "Cohere-North-Mini-Code",
+    "nvidia/google_gemma-4-31b-it": "Gemma-4-31B-it",
+    "nvidia/nvidia_nemotron-3-nano-30b-a3b": "Nemotron-3-Nano-30B-A3B",
+    "nvidia/nvidia_nemotron-3-nano-omni-30b-a3b-reasoning": "Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+    "kilo/nvidia_nemotron-3-nano-omni-30b-a3b-reasoning_free": "Nemotron-3-Nano-Omni-30B-A3B-Reasoning",
+    "kilo/poolside_laguna-xs-2.1_free": "Laguna-XS-2.1",
+    "nvidia/poolside_laguna-xs-2.1": "Laguna-XS-2.1",
+    "nvidia/bytedance_seed-oss-36b-instruct": "Seed-OSS-36B-Instruct",
+    "nvidia/mistralai_mixtral-8x7b-instruct-v0.1": "Mixtral-8x7B-Instruct-v0.1",
+    "nvidia/nvidia_llama-3.3-nemotron-super-49b-v1": "Llama-3.3-Nemotron-Super-49B-v1",
+    "nvidia/nvidia_llama-3.3-nemotron-super-49b-v1.5": "Llama-3.3-Nemotron-Super-49B-v1.5",
+    "nvidia/meta_llama-3.1-70b-instruct": "Llama-3.1-70B-Instruct",
+    "nvidia/meta_llama-3.3-70b-instruct": "Llama-3.3-70B-Instruct",
+    "openrouter/meta-llama_llama-3.3-70b-instruct": "Llama-3.3-70B-Instruct",
+    "nvidia/abacusai_dracarys-llama-3.1-70b-instruct": "Dracarys-Llama-3.1-70B",
+    "nvidia/qwen_qwen3-next-80b-a3b-instruct": "Qwen3-Next-80B-A3B",
+    "nvidia/stockmark_stockmark-2-100b-instruct": "Stockmark-2-100B",
+    "groq/meta-llama_llama-4-scout-17b-16e-instruct": "Llama-4-Scout-17B-16E",
+    "nvidia/openai_gpt-oss-120b": "gpt-oss-120b",
+    "opencodezen/laguna-s-2.1-free": "Laguna-S-2.1",
+    "nvidia/mistralai_mistral-small-4-119b-2603": "Mistral-Small-4-119B-2603",
+    "nvidia/nvidia_nemotron-3-super-120b-a12b": "Nemotron-3-Super-120B-A12B",
+    "openrouter/nvidia_nemotron-3-super-120b-a12b_free": "Nemotron-3-Super-120B-A12B",
+    "kilo/nvidia_nemotron-3-super-120b-a12b_free": "Nemotron-3-Super-120B-A12B",
+    "nvidia/qwen_qwen3.5-122b-a10b": "Qwen3.5-122B-A10B",
+    "nvidia/mistralai_mistral-medium-3.5-128b": "Mistral-Medium-3.5-128B",
+    "nvidia/stepfun-ai_step-3.5-flash": "Step-3.5-Flash",
+    "nvidia/stepfun-ai_step-3.7-flash": "Step-3.7-Flash",
+    "zenmux/stepfun_step-3.7-flash-free": "Step-3.7-Flash",
+    "kilo/stepfun_step-3.7-flash_free": "Step-3.7-Flash",
+    "nvidia/minimaxai_minimax-m2.7": "MiniMax-M2.7",
+    "nvidia/deepseek-ai_deepseek-v4-flash": "DeepSeek-V4-Flash",
+    "opencodezen/deepseek-v4-flash-free": "DeepSeek-V4-Flash",
+    "kilo/tencent_hy3_free": "Tencent-Hy3",
+    "opencodezen/hy3-free": "Tencent-Hy3",
+    "opencodezen/mimo-v2.5-free": "MiMo-V2.5",
+    "nvidia/meta_llama-4-maverick-17b-128e-instruct": "Llama-4-Maverick-17B-128E",
+    "nvidia/minimaxai_minimax-m3": "MiniMax-M3",
+    "kilo/nvidia_nemotron-3-ultra-550b-a55b_free": "Nemotron-3-Ultra-550B-A55B",
+    "opencodezen/nemotron-3-ultra-free": "Nemotron-3-Ultra-550B-A55B",
+    "nvidia/nvidia_nemotron-3-ultra-550b-a55b": "Nemotron-3-Ultra-550B-A55B",
+    "nvidia/mistralai_mistral-large-3-675b-instruct-2512": "Mistral-Large-3-675B-2512",
+    "tokenrouter/z-ai_glm-5.2-free": "GLM-5.2",
+    "nvidia/thinkingmachines_inkling": "Inkling",
+    "nvidia/deepseek-ai_deepseek-v4-pro": "DeepSeek-V4-Pro",
+    "grok/grok-4.5": "Grok-4.5",
+    "zenmux/x-ai_grok-4.5-free": "Grok-4.5",
+    "kilo/kwaipilot_kat-coder-pro-v2.5_free": "KAT-Coder-Pro-V2.5",
+    "opencodezen/big-pickle": "big-pickle",
+    "nvidia/mistralai_mistral-nemotron": "mistral-nemotron",
+    "kilo/poolside_laguna-m.1_free": "Laguna-M.1",
+    "opencodezen/laguna-m.1-free": "Laguna-M.1",
+    "nvidia/poolside_laguna-m.1": "Laguna-M.1",
+    "kilo/poolside_laguna-xs.2_free": "Laguna-XS.2",
+    "nvidia/poolside_laguna-xs.2": "Laguna-XS.2",
+    "kilo/inclusionai_ling-3.0-flash_free": "Ling-3.0-flash",
+    "openrouter/inclusionai_ling-3.0-flash_free": "Ling-3.0-flash",
+    "zenmux/inclusionai_ling-3.0-flash": "Ling-3.0-flash",
+    "opencodezen/ling-3.0-flash-free": "Ling-3.0-flash"
+  }
+}

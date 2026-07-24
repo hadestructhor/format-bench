@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>format-bench — ten ways to explore the results</title>
+<meta name="description" content="Ten information architectures for exploring a benchmark: leaderboard, cases, replies and failures.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232a78d6'/%3E%3Ctext x='8' y='12' font-family='monospace' font-size='11' font-weight='700' fill='%23fff' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+<style>
+/* ── chrome tokens (the gallery's own shell, not the proposals') ─────────── */
+:root {
+  color-scheme: light;
+  --bg: #f7f8fa; --surface: #ffffff; --surface-2: #f1f3f6;
+  --border: #e3e6ec; --border-strong: #d3d8e0;
+  --ink: #14141f; --muted: #565e6e; --faint: #8b93a3;
+  --teal: hsl(187 74% 32%); --purple: hsl(270 70% 45%);
+  --grad: linear-gradient(100deg, var(--teal), var(--purple));
+  --ring: hsl(187 74% 40% / .55);
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0e14; --surface: #12161f; --surface-2: #171c27;
+    --border: #232a37; --border-strong: #313a4b;
+    --ink: #e7eaf0; --muted: #9aa4b4; --faint: #68738a;
+    --teal: hsl(187 68% 46%); --purple: hsl(270 78% 70%);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0e14; --surface: #12161f; --surface-2: #171c27;
+  --border: #232a37; --border-strong: #313a4b;
+  --ink: #e7eaf0; --muted: #9aa4b4; --faint: #68738a;
+  --teal: hsl(187 68% 46%); --purple: hsl(270 78% 70%);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+h1, h2, h3 { margin: 0; line-height: 1.08; letter-spacing: -.02em; text-wrap: balance; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-radius: 3px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+.eyebrow {
+  font-family: var(--mono); font-size: .72rem; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--faint); display: flex; align-items: center; gap: 10px;
+}
+.eyebrow::before { content: ""; width: 1px; height: 24px; background: var(--grad); display: block; }
+.gradient-text { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* ── gallery ─────────────────────────────────────────────────────────── */
+.head { padding: 56px 0 8px; }
+.head h1 { font-size: clamp(1.9rem, 4.6vw, 3rem); font-weight: 660; margin-top: 14px; }
+.head p { color: var(--muted); max-width: 66ch; margin: 16px 0 0; }
+.grid { display: grid; gap: 1.5rem; grid-template-columns: 1fr; margin: 48px 0 90px; }
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .grid { grid-template-columns: repeat(3, 1fr); } }
+
+.card {
+  display: flex; flex-direction: column; overflow: hidden; text-align: left;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+  cursor: pointer; padding: 0; font: inherit; color: inherit;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.card:hover { transform: translateY(-4px); box-shadow: 0 14px 34px rgba(0,0,0,.14); border-color: var(--border-strong); }
+.card:hover .go span { transform: translateX(3px); }
+.mini { position: relative; height: 11rem; padding: 14px; overflow: hidden; }
+.mini .idx { position: absolute; top: 12px; left: 14px; font: 700 .66rem var(--mono); letter-spacing: .14em; }
+.mini .dot { position: absolute; top: 13px; right: 14px; width: 8px; height: 8px; border-radius: 999px; }
+.cfoot { border-top: 1px solid var(--border); background: var(--surface); padding: 14px 16px; }
+.cfoot h3 { font-size: 1.02rem; font-weight: 620; }
+.cfoot p { color: var(--muted); font-size: .845rem; margin: 6px 0 10px; min-height: 3.2em; }
+.go { font: 500 .76rem var(--mono); color: var(--teal); display: inline-flex; align-items: center; gap: 5px; }
+.go span { transition: transform .18s ease; display: inline-block; }
+
+/* ── proposal viewer ─────────────────────────────────────────────────── */
+#viewer { display: none; position: fixed; inset: 0; z-index: 60; overflow-y: auto; }
+#viewer.on { display: block; }
+body.locked { overflow: hidden; }
+.stage { min-height: 100vh; padding: 0 0 90px; }
+
+/* ── the switcher pill ───────────────────────────────────────────────── */
+.pill {
+  position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); z-index: 70;
+  display: none; align-items: center; gap: .6rem; max-width: calc(100vw - 1.5rem);
+  padding: .4rem .7rem; border-radius: 999px;
+  background: rgba(12,14,20,.82); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.14); color: #e6edf3;
+  font: 500 12px/1 var(--sans); box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.pill.on { display: flex; }
+.pill button, .pill a {
+  background: none; border: 0; color: inherit; font: inherit; cursor: pointer;
+  padding: 4px 6px; border-radius: 999px; text-decoration: none;
+}
+.pill button:hover, .pill a:hover { background: rgba(255,255,255,.12); }
+.pill .selwrap {
+  position: relative; display: flex; align-items: center; gap: 4px;
+  border: 1px solid rgba(255,255,255,.22); border-radius: 999px; padding: 2px 8px 2px 10px;
+}
+.pill select {
+  appearance: none; background: none; border: 0; color: inherit; font: 500 12px var(--sans);
+  padding-right: 2px; cursor: pointer; max-width: 34vw;
+}
+.pill select option { background: #12161f; color: #e6edf3; }
+.pill .caret { font-size: 9px; opacity: .8; }
+.pill .count { font-family: var(--mono); font-variant-numeric: tabular-nums; opacity: .75; }
+.pill .sep { width: 1px; height: 16px; background: rgba(255,255,255,.18); }
+
+footer { border-top: 1px solid var(--border); padding: 26px 0 40px; color: var(--faint); font-size: 13px; }
+
+/* ── shared mockup primitives (used inside proposals) ────────────────── */
+.mk { font-size: 12px; line-height: 1.4; }
+.mk .bar { height: 6px; border-radius: 999px; }
+.mk .row { display: flex; align-items: center; gap: 8px; }
+.mk .chip { display: inline-block; padding: 2px 7px; border-radius: 999px; font-size: 10px; font-family: var(--mono); }
+.mk table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+.mk th, .mk td { padding: 4px 7px; text-align: left; }
+.mk .num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.stage .inner { max-width: 1180px; margin: 0 auto; padding: 30px 22px 40px; }
+.stage h2 { font-size: 1.5rem; }
+.stage .lede { opacity: .72; max-width: 60ch; margin: 10px 0 26px; font-size: .93rem; }
+.panel { border-radius: 10px; overflow: hidden; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+
+<div class="wrap head">
+  <div class="eyebrow">format-bench · interface studies</div>
+  <h1>Ten ways to explore <span class="gradient-text">2,025 cases</span><br>and 58 models.</h1>
+  <p>
+    The data is the same in every one of these: a leaderboard, nine conversion directions, seven constraints,
+    2,025 test cases and — where a run captured them — the model's actual replies. What changes is the
+    <b>entry point</b>: what you see first, and therefore what question the page makes easy to ask.
+    Hover a card to lift it, open one to walk through the whole layout, then ←/→ between them.
+  </p>
+</div>
+
+<div class="wrap"><div class="grid" id="grid"></div></div>
+
+<footer><div class="wrap">
+  format-bench · interface studies · <a href="index.html">back to the live leaderboard</a>
+</div></footer>
+
+<div id="viewer" aria-modal="true" role="dialog" aria-label="Proposal preview"><div class="stage" id="stage"></div></div>
+
+<nav class="pill" id="pill" aria-label="Proposal switcher">
+  <button id="prev" title="Previous (←)" aria-label="Previous proposal">‹</button>
+  <span class="selwrap">
+    <select id="jump" aria-label="Jump to a proposal"></select>
+    <span class="caret" aria-hidden="true">▾</span>
+  </span>
+  <span class="count" id="count">01/10</span>
+  <button id="next" title="Next (→)" aria-label="Next proposal">›</button>
+  <span class="sep"></span>
+  <button id="back">Gallery</button>
+  <span class="sep"></span>
+  <a href="index.html">Live site</a>
+</nav>
+
+<script type="module">
+const $ = (s, r = document) => r.querySelector(s);
+
+/* Real numbers from the run, so every mockup is judged on real content. */
+const TOP = [
+  ["llama-4-maverick-17b", "nvidia", "400B", 62, 79],
+  ["nemotron-3-ultra", "opencode", "550B", 74, 73],
+  ["deepseek-v4-flash", "nvidia", "284B", 69, 73],
+  ["gpt-oss-20b", "nvidia", "21B", 68, 72],
+  ["nemotron-3-nano-omni", "nvidia", "33B", 67, 72],
+  ["gpt-oss-120b", "nvidia", "117B", 68, 71],
+  ["seed-oss-36b", "nvidia", "36B", 62, 70],
+  ["glm-5.2", "tokenrouter", "744B", 70, 70],
+];
+const DIRS = ["text→json", "text→yaml", "text→csv", "json→yaml", "json→csv", "yaml→json", "yaml→csv", "csv→json", "csv→yaml"];
+const DIRSCORE = [36, 30, 39, 49, 44, 45, 41, 31, 29];
+const CHAL = [["count", 25], ["enum", 26], ["range", 28], ["escape", 30], ["unit", 30], ["wrap", 31], ["type", 31]];
+
+const P = [
+  {
+    slug: "matrix", name: "Matrix Console",
+    concept: "The 9×N direction grid is the homepage. You land on where models break, not on who won.",
+    bg: "#0d1117", ink: "#e6edf3", accent: "#2dd4bf", font: "var(--mono)",
+  },
+  {
+    slug: "reader", name: "Case Reader",
+    concept: "The 2,025 cases are the primary object. Models become columns against one case at a time.",
+    bg: "#f6f3ec", ink: "#1f1c18", accent: "#b5502a", font: "var(--serif)",
+  },
+  {
+    slug: "arena", name: "Head-to-Head",
+    concept: "Pick two models. Diff their replies case by case and see exactly where they diverge.",
+    bg: "#101828", ink: "#e8edf7", accent: "#f5a623", font: "var(--sans)",
+  },
+  {
+    slug: "frontier", name: "Frontier",
+    concept: "Size against score as the landing view. The Pareto edge is the leaderboard; points open models.",
+    bg: "#fbfbfd", ink: "#111018", accent: "#6039e0", font: "var(--sans)",
+  },
+  {
+    slug: "atlas", name: "Failure Atlas",
+    concept: "Enter through what went wrong: kept the unit, dropped the wrapper, stringified a number.",
+    bg: "#1b1a1e", ink: "#eceaef", accent: "#ff6b57", font: "var(--sans)",
+  },
+  {
+    slug: "notes", name: "Field Notes",
+    concept: "A written argument you scroll through. Charts sit inside the sentence that needs them.",
+    bg: "#fdfcf7", ink: "#22201b", accent: "#1f6f43", font: "var(--serif)",
+  },
+  {
+    slug: "tty", name: "Terminal",
+    concept: "Keyboard-first. Slash to filter, j/k to move, everything reachable without the mouse.",
+    bg: "#24273a", ink: "#cad3f5", accent: "#c6a0f6", font: "var(--mono)",
+  },
+  {
+    slug: "workbench", name: "Workbench",
+    concept: "A three-pane IDE: case tree, the reply diffed against expected, verdicts down the side.",
+    bg: "#16181d", ink: "#dfe3ea", accent: "#7ee787", font: "var(--mono)",
+  },
+  {
+    slug: "dials", name: "Constraint Dials",
+    concept: "Seven toggles, one per constraint. Flip them and the whole board recomputes live.",
+    bg: "#ffffff", ink: "#16121c", accent: "#d6249f", font: "var(--sans)",
+  },
+  {
+    slug: "digest", name: "Digest",
+    concept: "A feed of the findings worth knowing, each card expanding into the evidence behind it.",
+    bg: "#f4f6fb", ink: "#0f1523", accent: "#2a78d6", font: "var(--sans)",
+  },
+];
+
+/* ── miniatures: each card paints a recognisable reduction of its own layout ── */
+const bars = (a, c, w = 1) => a.map((v) => `<div class="bar" style="width:${v * w}%;background:${c};opacity:.9"></div>`).join("");
+const MINI = {
+  matrix: (p) => `<div class="mk" style="margin-top:20px;display:grid;grid-template-columns:repeat(6,1fr);gap:2px">
+    ${DIRSCORE.concat(DIRSCORE, DIRSCORE).slice(0, 30).map((v) =>
+      `<div style="height:15px;border-radius:2px;background:${p.accent};opacity:${(v / 100 + .12).toFixed(2)}"></div>`).join("")}
+  </div><div style="margin-top:8px;font:600 9px var(--mono);opacity:.55">9 DIRECTIONS × 58 MODELS</div>`,
+
+  reader: (p) => `<div class="mk" style="margin-top:22px">
+    <div style="font-size:10px;opacity:.5;font-family:var(--mono)">test-01114 · yaml→json</div>
+    <div style="margin-top:6px;border-left:2px solid ${p.accent};padding-left:8px;font-size:11px;line-height:1.5">
+      sku: SKU-7733<br>price: $9<br>rating: "9"</div>
+    <div style="margin-top:8px;display:flex;gap:3px">
+      ${[1,1,0,1,0,1,1,1,0,1,1,0].map((h) =>
+        `<div style="width:8px;height:8px;border-radius:2px;background:${h ? p.accent : "currentColor"};opacity:${h ? .9 : .18}"></div>`).join("")}
+    </div></div>`,
+
+  arena: (p) => `<div class="mk" style="margin-top:20px;display:grid;grid-template-columns:1fr 14px 1fr;gap:6px;align-items:start">
+    <div>${bars([70, 55, 62, 48], p.accent, .9)}</div>
+    <div style="text-align:center;font:700 10px var(--mono);opacity:.55;padding-top:12px">vs</div>
+    <div>${bars([58, 66, 44, 61], p.ink, .9)}</div></div>
+    <div style="margin-top:14px;font:600 9px var(--mono);opacity:.55">GPT-OSS-20B · GLM-5.2</div>`,
+
+  frontier: (p) => {
+    const pts = [[12, 74], [22, 40], [34, 62], [45, 70], [58, 55], [66, 78], [78, 72], [88, 68], [30, 22], [18, 30]];
+    return `<svg viewBox="0 0 100 60" style="margin-top:18px;width:100%;height:88px">
+      ${pts.map(([x, y]) => `<circle cx="${x}" cy="${60 - y * .62}" r="2.6" fill="${p.accent}" opacity=".85"/>`).join("")}
+      <path d="M12 14 L45 16 L66 12 L88 17" fill="none" stroke="${p.accent}" stroke-width=".8" stroke-dasharray="2 2" opacity=".6"/>
+    </svg><div style="font:600 9px var(--mono);opacity:.55">SIZE → SCORE · PARETO EDGE</div>`;
+  },
+
+  atlas: (p) => `<div class="mk" style="margin-top:20px">
+    ${[["kept the unit", 82], ["stringified a number", 64], ["dropped the wrapper", 47], ["wrong enum form", 39]]
+      .map(([t, v]) => `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+        <div class="bar" style="width:${v * .55}%;background:${p.accent};opacity:.85"></div>
+        <span style="font-size:9px;opacity:.62;white-space:nowrap">${t}</span></div>`).join("")}</div>`,
+
+  notes: (p) => `<div class="mk" style="margin-top:20px">
+    <div style="font-size:13px;font-weight:600;line-height:1.25">The example<br>doesn't help.</div>
+    <div style="margin-top:8px;display:flex;align-items:flex-end;gap:2px;height:34px">
+      ${[9,7,6,5,4,3,2,1,-1,-2,-3,-5,-7,-9].map((v) =>
+        `<div style="width:6px;height:${Math.abs(v) * 3}px;background:${v > 0 ? p.accent : "#b4433f"};opacity:.85;align-self:${v > 0 ? "flex-end" : "flex-start"}"></div>`).join("")}
+    </div>
+    <div style="margin-top:6px;font-size:9px;opacity:.5">28 helped · 23 hurt</div></div>`,
+
+  tty: (p) => `<div class="mk" style="margin-top:20px;font-size:10.5px;line-height:1.6">
+    <div><span style="color:${p.accent}">❯</span> board --dir csv→yaml</div>
+    <div style="opacity:.62">  1  nemotron-3-ultra    <span style="color:${p.accent}">73</span></div>
+    <div style="opacity:.62">  2  gpt-oss-20b         <span style="color:${p.accent}">72</span></div>
+    <div style="opacity:.62">  3  glm-5.2             <span style="color:${p.accent}">70</span></div>
+    <div><span style="color:${p.accent}">❯</span> <span style="background:${p.accent};color:${p.bg}">&nbsp;</span></div></div>`,
+
+  workbench: (p) => `<div class="mk" style="margin-top:20px;display:grid;grid-template-columns:34px 1fr 22px;gap:5px;height:96px">
+    <div style="display:flex;flex-direction:column;gap:3px">
+      ${Array.from({ length: 7 }, (_, i) => `<div style="height:8px;border-radius:2px;background:currentColor;opacity:${i === 2 ? .5 : .14}"></div>`).join("")}</div>
+    <div style="border:1px solid ${p.accent}40;border-radius:4px;padding:6px;font-size:9px;line-height:1.5">
+      <span style="color:${p.accent}">- </span>"rating": "9"<br><span style="color:${p.accent}">+ </span>"rating": 5<br>
+      <span style="opacity:.4">  "sku": "SKU-77…"</span></div>
+    <div style="display:flex;flex-direction:column;gap:3px">
+      ${[1,1,0,1,0,1,1].map((h) => `<div style="height:8px;border-radius:2px;background:${h ? p.accent : "#e5534b"};opacity:.8"></div>`).join("")}</div>
+  </div>`,
+
+  dials: (p) => `<div class="mk" style="margin-top:20px;display:flex;flex-wrap:wrap;gap:5px">
+    ${CHAL.map(([k], i) => `<span class="chip" style="background:${i < 4 ? p.accent : "transparent"};
+      color:${i < 4 ? "#fff" : p.ink};border:1px solid ${i < 4 ? p.accent : p.ink + "33"};opacity:${i < 4 ? 1 : .5}">${k}</span>`).join("")}
+    </div><div style="margin-top:12px;display:flex;align-items:flex-end;gap:3px;height:30px">
+    ${[56, 46, 38, 32, 30, 21].map((v) => `<div style="width:12px;height:${v * .5}px;background:${p.accent};opacity:.85;border-radius:2px 2px 0 0"></div>`).join("")}
+    </div>`,
+
+  digest: (p) => `<div class="mk" style="margin-top:18px;display:flex;flex-direction:column;gap:6px">
+    ${[["A 21B model beats a 744B one", 1], ["CSV→YAML is the hardest direction", 0], ["Examples hurt 23 of 58", 0]]
+      .map(([t, hot]) => `<div style="background:${hot ? p.accent + "18" : "transparent"};border:1px solid ${p.ink}1a;
+        border-left:2px solid ${hot ? p.accent : p.ink + "33"};border-radius:4px;padding:6px 8px;font-size:10px">${t}</div>`).join("")}
+  </div>`,
+};
+
+/* ── full-page mockups ───────────────────────────────────────────────── */
+const heat = (p, rows = 8) => `<div style="overflow-x:auto"><table class="mk" style="border-collapse:separate;border-spacing:2px">
+  <tr><th></th>${DIRS.map((d) => `<th style="font:600 9px var(--mono);opacity:.6;text-align:center">${d}</th>`).join("")}</tr>
+  ${TOP.slice(0, rows).map(([m,, , , ex]) => `<tr>
+    <td style="font-size:11px;white-space:nowrap;padding-right:8px">${m}</td>
+    ${DIRSCORE.map((base) => { const v = Math.max(4, Math.min(96, base + (ex - 60) + ((m.length * 7) % 13) - 6));
+      // Wide opacity range, and the label flips with it — a fixed ink colour left the dim cells unreadable.
+      const op = 0.2 + (v / 100) * 0.8;
+      return `<td style="text-align:center;padding:5px 8px;border-radius:3px;background:${p.accent};
+        opacity:${op.toFixed(2)};color:${op > .62 ? p.bg : p.ink};font:600 10px var(--mono)">${v}</td>`; }).join("")}
+  </tr>`).join("")}</table></div>`;
+
+const boardTable = (p, cols = true) => `<table class="mk">
+  <tr style="opacity:.6"><th style="font-size:9px;letter-spacing:.08em">#</th><th style="font-size:9px;letter-spacing:.08em">MODEL</th>
+  <th style="font-size:9px;letter-spacing:.08em">SIZE</th>
+  ${cols ? '<th class="num" style="font-size:9px;letter-spacing:.08em">PLAIN</th>' : ""}
+  <th class="num" style="font-size:9px;letter-spacing:.08em">TASK</th></tr>
+  ${TOP.map(([m, prov, sz, pl, ex], i) => `<tr style="border-top:1px solid ${p.ink}14">
+    <td class="num" style="opacity:.45">${i + 1}</td>
+    <td>${m}<span style="opacity:.45;font-size:10px"> ${prov}</span></td>
+    <td style="font-family:var(--mono);font-size:10.5px;opacity:.7">${sz}</td>
+    ${cols ? `<td class="num" style="opacity:.6">${pl}</td>` : ""}
+    <td class="num" style="font-weight:700;color:${p.accent}">${ex}</td></tr>`).join("")}
+</table>`;
+
+const CASE = {
+  id: "test-01114", dir: "yaml → json", chal: ["type", "unit", "enum", "range", "escape", "wrap"],
+  input: 'sku: SKU-7733\ntitle: ivory case\nprice: $9\nweight: 500g\navailability: out-of-stock\nrating: "9"\nfeatured: "true"',
+  expected: '{\n  "product": {\n    "sku": "SKU-7733",\n    "title": "ivory case",\n    "price": 9,\n    "weight": 500,\n    "availability": "out_of_stock",\n    "rating": 5,\n    "featured": true\n  }\n}',
+  got: '{\n  "sku": "SKU-7733",\n  "title": "ivory case",\n  "price": 9,\n  "weight": "500g",   ← unit kept\n  "availability": "out-of-stock",\n  "rating": 9,        ← not clamped\n  "featured": true\n}',
+};
+const box = (p, title, body, tint) => `<div class="panel" style="border:1px solid ${p.ink}1f;background:${tint ?? "transparent"}">
+  <div style="font:600 9px var(--mono);letter-spacing:.1em;text-transform:uppercase;opacity:.55;padding:8px 11px 0">${title}</div>
+  <pre style="margin:6px 0 0;padding:0 11px 11px;font-family:var(--mono);font-size:11px;line-height:1.5;white-space:pre-wrap">${body}</pre></div>`;
+
+const VIEW = {
+  matrix: (p) => `
+    <h2>Where models break, first.</h2>
+    <p class="lede">No "who won" table above the fold. The grid <i>is</i> the page: nine directions across,
+      models down, every cell a door into the cases behind it.</p>
+    ${heat(p)}
+    <div style="margin-top:26px;display:grid;gap:16px;grid-template-columns:1fr 1fr">
+      ${box(p, "cell → 225 cases · csv→yaml · gpt-oss-20b", "76 passed · 149 failed\n\nby constraint\n  count   12/45\n  enum    18/45\n  range   21/45", p.accent + "10")}
+      ${box(p, "worst column", "csv→yaml   29 avg\ntext→yaml  30 avg\ncsv→json   31 avg\n\nCSV erases types. Rebuilding them\nis the hardest thing here.")}
+    </div>`,
+
+  reader: (p) => `
+    <h2>One case, fifty-eight answers.</h2>
+    <p class="lede">The case is the subject and models are the commentary — the shape of a critical edition
+      rather than a scoreboard.</p>
+    <div style="display:grid;gap:22px;grid-template-columns:1.1fr .9fr">
+      <div>
+        <div style="font-family:var(--mono);font-size:11px;opacity:.55">${CASE.id} · ${CASE.dir}</div>
+        <div style="margin:8px 0 14px;display:flex;gap:5px;flex-wrap:wrap">
+          ${CASE.chal.map((c) => `<span class="chip" style="border:1px solid ${p.accent};color:${p.accent}">${c}</span>`).join("")}</div>
+        ${box(p, "input", CASE.input)}
+        <div style="height:12px"></div>
+        ${box(p, "expected", CASE.expected, p.accent + "0f")}
+      </div>
+      <div>
+        <div style="font:600 9px var(--mono);letter-spacing:.1em;opacity:.55;margin-bottom:8px">WHO GOT IT</div>
+        <table class="mk">${TOP.map(([m], i) => `<tr style="border-top:1px solid ${p.ink}14">
+          <td>${m}</td><td class="num" style="color:${i % 3 ? p.accent : "#b4433f"};font-weight:700">${i % 3 ? "✓" : "✗"}</td></tr>`).join("")}</table>
+        <div style="margin-top:14px">${box(p, "gpt-oss-20b replied", CASE.got)}</div>
+      </div>
+    </div>`,
+
+  arena: (p) => `
+    <h2>Two models, one diff.</h2>
+    <p class="lede">Aggregate scores hide the interesting part. Put two models side by side and the
+      disagreements are the finding.</p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px;flex-wrap:wrap">
+      <span class="chip" style="background:${p.accent};color:${p.bg};font-size:12px;padding:6px 12px">gpt-oss-20b · 72</span>
+      <span style="opacity:.5;font-family:var(--mono)">vs</span>
+      <span class="chip" style="border:1px solid ${p.ink}44;font-size:12px;padding:6px 12px">glm-5.2 · 70</span>
+    </div>
+    <div style="display:grid;gap:14px;grid-template-columns:repeat(4,1fr);margin-bottom:24px">
+      ${[["both right", 1284, p.accent], ["both wrong", 412, "#6b7280"], ["only left", 163, p.accent], ["only right", 166, "#e5a33a"]]
+        .map(([t, n, c]) => `<div style="border:1px solid ${p.ink}22;border-radius:8px;padding:12px">
+          <div style="font:700 1.5rem var(--mono);color:${c}">${n}</div>
+          <div style="font-size:10.5px;opacity:.6;margin-top:2px">${t}</div></div>`).join("")}
+    </div>
+    <div style="font:600 9px var(--mono);letter-spacing:.1em;opacity:.55;margin-bottom:8px">163 CASES ONLY GPT-OSS-20B SOLVED</div>
+    <div style="display:grid;gap:14px;grid-template-columns:1fr 1fr">
+      ${box(p, "gpt-oss-20b ✓", CASE.expected, p.accent + "14")}
+      ${box(p, "glm-5.2 ✗", CASE.got, "#e5534b14")}
+    </div>`,
+
+  frontier: (p) => `
+    <h2>The efficient frontier.</h2>
+    <p class="lede">Capability per parameter, as the first thing you see. The dashed line is the frontier —
+      everything below it is dominated by something smaller.</p>
+    <svg viewBox="0 0 700 300" style="width:100%;height:320px;border:1px solid ${p.ink}1a;border-radius:10px">
+      ${[0, 25, 50, 75, 100].map((g) => `<line x1="46" x2="680" y1="${270 - g * 2.4}" y2="${270 - g * 2.4}" stroke="${p.ink}14"/>
+        <text x="38" y="${274 - g * 2.4}" text-anchor="end" font-family="var(--mono)" font-size="9" fill="${p.ink}" opacity=".5">${g}</text>`).join("")}
+      ${[[70, 168, "SmolLM-135M"], [120, 246, "LFM2-350M"], [190, 210, "gemma-3-4b"], [255, 100, "gpt-oss-20b"],
+         [310, 118, "seed-oss-36b"], [370, 106, "gpt-oss-120b"], [430, 96, "mistral-128b"], [500, 102, "laguna-m.1"],
+         [560, 88, "deepseek-v4"], [620, 66, "maverick-400B"], [660, 102, "glm-5.2"]]
+        .map(([x, y, l]) => `<circle cx="${x}" cy="${y}" r="6" fill="${p.accent}" opacity=".9"/>
+          <text x="${x}" y="${y - 11}" text-anchor="middle" font-family="var(--mono)" font-size="8" fill="${p.ink}" opacity=".62">${l}</text>`).join("")}
+      <path d="M70 168 L255 100 L430 96 L620 66" fill="none" stroke="${p.accent}" stroke-width="1.4" stroke-dasharray="5 4" opacity=".75"/>
+      <text x="680" y="292" text-anchor="end" font-family="var(--mono)" font-size="9" fill="${p.ink}" opacity=".5">parameters (log) →</text>
+    </svg>
+    <p style="margin-top:16px;font-size:.9rem;opacity:.75">
+      <b>gpt-oss-20b</b> sits on the frontier at 21B and 72 points — ahead of models 35× its size.
+      Click any point for that model's directions, constraints and replies.</p>`,
+
+  atlas: (p) => `
+    <h2>Enter through the failure.</h2>
+    <p class="lede">You rarely arrive asking "who is best". You arrive asking "why did it mangle my data" —
+      so the taxonomy of ways it goes wrong is the front door.</p>
+    <div style="display:grid;gap:12px;grid-template-columns:repeat(2,1fr)">
+      ${[["Kept the unit", '"weight": "500g" instead of 500', 826, "unit"],
+         ["Stringified a number", '"rating": "9" instead of 9', 822, "type"],
+         ["Didn't clamp the range", "rating 9 where the max is 5", 821, "range"],
+         ["Wrong canonical form", '"out-of-stock" not "out_of_stock"', 820, "enum"],
+         ["Dropped the wrapper key", "returned the bare object", 603, "wrap"],
+         ["Kept every item", "6 rows where 3 were asked for", 488, "count"]]
+        .map(([t, ex, n, k]) => `<button style="all:unset;cursor:pointer;display:block;border:1px solid ${p.ink}22;
+          border-left:3px solid ${p.accent};border-radius:8px;padding:13px 15px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+            <b style="font-size:.94rem">${t}</b><span style="font-family:var(--mono);font-size:11px;color:${p.accent}">${n} cases</span></div>
+          <div style="font-family:var(--mono);font-size:11px;opacity:.62;margin-top:5px">${ex}</div>
+          <div style="margin-top:9px;height:4px;border-radius:999px;background:${p.ink}1a">
+            <div style="height:4px;border-radius:999px;width:${(n / 830) * 100}%;background:${p.accent}"></div></div>
+        </button>`).join("")}
+    </div>`,
+
+  notes: (p) => `
+    <h2 style="font-size:2rem;max-width:16ch">What 58 models taught us about reformatting data.</h2>
+    <p class="lede" style="font-size:1.02rem">A written argument. Charts appear where the sentence needs one,
+      and every claim links to the cases underneath it.</p>
+    <div style="max-width:64ch;font-size:1.02rem;line-height:1.7">
+      <p><b style="float:left;font-size:2.6rem;line-height:.82;margin:4px 9px 0 0;color:${p.accent}">T</b>
+      he first surprise is that nobody has solved this. The best model in the set reaches 79 out of 100.
+      Not one of the 2,025 cases is answered correctly by every model, and 173 of them are answered by none.</p>
+      <p>The second surprise is sharper. Prepending a worked example — the oldest trick there is — helped
+      28 models and <i>hurt</i> 23.</p>
+      <div style="margin:22px 0;padding:16px;border-left:3px solid ${p.accent};background:${p.accent}0d">
+        <div style="display:flex;align-items:flex-end;gap:3px;height:70px">
+          ${[17,14,12,10,8,7,6,5,4,3,2,1,0,-1,-2,-3,-4,-6,-8,-11,-14].map((v) =>
+            `<div style="width:11px;height:${Math.abs(v) * 3.4}px;background:${v >= 0 ? p.accent : "#b4433f"};
+              align-self:${v >= 0 ? "flex-end" : "flex-start"};border-radius:2px"></div>`).join("")}
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;opacity:.6;margin-top:8px">Δ task score with the worked example, per model</div>
+      </div>
+      <p>The third is that size buys less than you'd expect. A 21B model beats a 744B one.</p>
+    </div>`,
+
+  tty: (p) => `
+    <h2>For people who never reach for the mouse.</h2>
+    <p class="lede">Every view is a command, every result is addressable, and the whole surface is one
+      monospace grid. Slash filters, j/k moves, enter opens.</p>
+    <div style="border:1px solid ${p.accent}44;border-radius:8px;padding:16px;font-family:var(--mono);font-size:12.5px;line-height:1.75">
+      <div style="opacity:.5">format-bench 1.0 · 58 models · 2025 cases</div>
+      <div style="margin-top:10px"><span style="color:${p.accent}">❯</span> board --dir csv→yaml --sort task</div>
+      <div style="opacity:.72">
+        <div>&nbsp;&nbsp;<span style="opacity:.5">1</span>&nbsp;&nbsp;nemotron-3-ultra&nbsp;&nbsp;&nbsp;&nbsp;550B&nbsp;&nbsp;<span style="color:${p.accent}">73</span></div>
+        <div style="background:${p.accent}22">&nbsp;<span style="color:${p.accent}">▸</span><span style="opacity:.5">2</span>&nbsp;&nbsp;gpt-oss-20b&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;21B&nbsp;&nbsp;<span style="color:${p.accent}">72</span></div>
+        <div>&nbsp;&nbsp;<span style="opacity:.5">3</span>&nbsp;&nbsp;glm-5.2&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;744B&nbsp;&nbsp;<span style="color:${p.accent}">70</span></div>
+      </div>
+      <div style="margin-top:10px"><span style="color:${p.accent}">❯</span> open gpt-oss-20b --failed --chal enum</div>
+      <div style="opacity:.72">&nbsp;&nbsp;149 cases · showing 1</div>
+      <div style="margin-top:8px;opacity:.86;border-left:2px solid ${p.accent};padding-left:10px">
+        ${CASE.got.split("\n").map((l) => `<div>${l.replace(/←.*/, (m) => `<span style="color:${p.accent}">${m}</span>`)}</div>`).join("")}
+      </div>
+      <div style="margin-top:10px"><span style="color:${p.accent}">❯</span> <span style="background:${p.accent};color:${p.bg}">&nbsp;</span></div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;opacity:.6">
+      <span>/ filter</span><span>j k move</span><span>⏎ open</span><span>d diff</span><span>? help</span></div>`,
+
+  workbench: (p) => `
+    <h2>Three panes, one failing case.</h2>
+    <p class="lede">Built for the person fixing a model rather than ranking one: pick a failure on the left,
+      read the diff in the middle, see who else missed it on the right.</p>
+    <div style="display:grid;grid-template-columns:190px 1fr 150px;gap:0;border:1px solid ${p.ink}22;border-radius:8px;overflow:hidden;min-height:330px">
+      <div style="border-right:1px solid ${p.ink}22;padding:10px 0;font-size:11px">
+        ${["csv→yaml (149)", "csv→json (131)", "text→yaml (128)", "json→csv (96)"].map((g, gi) => `
+          <div style="padding:5px 11px;opacity:.55;font-family:var(--mono);font-size:10px">${g}</div>
+          ${gi === 0 ? ["test-01114", "test-01378", "test-01546"].map((c, ci) => `
+            <div style="padding:4px 11px 4px 20px;font-family:var(--mono);font-size:10.5px;
+              ${ci === 0 ? `background:${p.accent}1f;box-shadow:inset 2px 0 0 ${p.accent}` : "opacity:.7"}">${c}</div>`).join("") : ""}
+        `).join("")}
+      </div>
+      <div style="padding:12px 14px">
+        <div style="font-family:var(--mono);font-size:10px;opacity:.55;margin-bottom:8px">${CASE.id} · ${CASE.dir} · expected vs got</div>
+        <pre style="margin:0;font-family:var(--mono);font-size:11px;line-height:1.6">${
+          CASE.got.split("\n").map((l) => l.includes("←")
+            ? `<span style="background:#e5534b26;display:block">${l}</span>`
+            : `<span style="opacity:.72;display:block">${l}</span>`).join("")}</pre>
+      </div>
+      <div style="border-left:1px solid ${p.ink}22;padding:10px 8px;font-size:10.5px">
+        <div style="font-family:var(--mono);font-size:9px;opacity:.55;margin-bottom:7px">58 MODELS</div>
+        ${TOP.map(([m], i) => `<div style="display:flex;justify-content:space-between;gap:5px;padding:2px 0">
+          <span style="opacity:.72;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${m.slice(0, 13)}</span>
+          <span style="color:${i % 3 ? p.accent : "#e5534b"};font-weight:700">${i % 3 ? "✓" : "✗"}</span></div>`).join("")}
+      </div>
+    </div>`,
+
+  dials: (p) => `
+    <h2>Turn the constraints off.</h2>
+    <p class="lede">Each of the seven constraints is an independent instruction. Toggle them and the board
+      recomputes over just the matching cases — which is how you find out what a model is actually bad at.</p>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px">
+      ${CHAL.map(([k, v], i) => `<button style="all:unset;cursor:pointer;display:flex;align-items:center;gap:7px;
+        border:1px solid ${i < 4 ? p.accent : p.ink + "2e"};background:${i < 4 ? p.accent + "12" : "transparent"};
+        border-radius:999px;padding:7px 13px">
+        <span style="width:26px;height:15px;border-radius:999px;background:${i < 4 ? p.accent : p.ink + "26"};position:relative">
+          <span style="position:absolute;top:2px;${i < 4 ? "right:2px" : "left:2px"};width:11px;height:11px;border-radius:999px;background:#fff"></span></span>
+        <b style="font-family:var(--mono);font-size:11.5px">${k}</b>
+        <span style="font-family:var(--mono);font-size:10.5px;opacity:.55">${v}</span></button>`).join("")}
+    </div>
+    <div style="display:grid;gap:20px;grid-template-columns:1.15fr .85fr">
+      <div><div style="font:600 9px var(--mono);letter-spacing:.1em;opacity:.55;margin-bottom:6px">BOARD · 4 CONSTRAINTS ACTIVE · 812 CASES</div>
+        ${boardTable(p)}</div>
+      <div><div style="font:600 9px var(--mono);letter-spacing:.1em;opacity:.55;margin-bottom:6px">SCORE AS CONSTRAINTS STACK</div>
+        <div style="display:flex;align-items:flex-end;gap:8px;height:150px;border-bottom:1px solid ${p.ink}22;padding-bottom:2px">
+          ${[["0", 56], ["1", 46], ["2", 38], ["3", 32], ["4", 30], ["all", 21]].map(([l, v]) => `
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px">
+              <span style="font-family:var(--mono);font-size:10px;opacity:.6">${v}</span>
+              <div style="width:100%;height:${v * 2}px;background:${p.accent};opacity:.88;border-radius:3px 3px 0 0"></div>
+              <span style="font-family:var(--mono);font-size:10px;opacity:.5">${l}</span></div>`).join("")}
+        </div></div>
+    </div>`,
+
+  digest: (p) => `
+    <h2>The findings, not the table.</h2>
+    <p class="lede">Most people want the conclusions. Each card states one, and opens into the numbers and
+      cases that support it.</p>
+    <div style="display:flex;flex-direction:column;gap:12px;max-width:70ch">
+      ${[["A 21B model beats a 744B one",
+          "gpt-oss-20b scores 72; glm-5.2, roughly 35× larger, scores 70. Instruction adherence under compound constraints is what separates models here — not parameter count.", true],
+         ["The worked example is a coin flip",
+          "Across 58 models, adding one solved example of the same direction helped 28, hurt 23 and changed nothing for 7. Mean effect: −0.4 points.", true],
+         ["CSV→YAML is the hardest direction",
+          "29 average against 49 for json→yaml. CSV erases types, so the model has to reconstruct which cells were numbers before it can write valid YAML.", false],
+         ["Nobody has solved anything easy",
+          "0 of 2,025 cases are answered correctly by all 58 models. 173 are answered by none.", false]]
+        .map(([t, d, hot]) => `<div style="border:1px solid ${p.ink}1a;border-left:3px solid ${hot ? p.accent : p.ink + "33"};
+          border-radius:8px;padding:15px 17px;background:${hot ? p.accent + "0b" : "transparent"}">
+          <b style="font-size:1.02rem">${t}</b>
+          <p style="margin:7px 0 0;font-size:.9rem;opacity:.75;line-height:1.55">${d}</p>
+          <div style="margin-top:10px;font-family:var(--mono);font-size:10.5px;color:${p.accent}">see the evidence →</div>
+        </div>`).join("")}
+    </div>`,
+};
+
+/* ── gallery render ──────────────────────────────────────────────────── */
+$("#grid").innerHTML = P.map((p, i) => `
+  <button class="card" data-i="${i}" aria-label="Open ${p.name}">
+    <div class="mini" style="background:${p.bg};color:${p.ink};font-family:${p.font}">
+      <span class="idx" style="color:${p.accent}">${String(i + 1).padStart(2, "0")}</span>
+      <span class="dot" style="background:${p.accent};box-shadow:0 0 12px ${p.accent}"></span>
+      ${MINI[p.slug](p)}
+    </div>
+    <div class="cfoot">
+      <h3>${p.name}</h3>
+      <p>${p.concept}</p>
+      <span class="go">Open <span>→</span></span>
+    </div>
+  </button>`).join("");
+
+$("#jump").innerHTML = P.map((p, i) => `<option value="${i}">${String(i + 1).padStart(2, "0")} — ${p.name}</option>`).join("");
+
+let cur = -1;
+function open(i) {
+  cur = (i + P.length) % P.length;
+  const p = P[cur];
+  $("#stage").style.cssText = `background:${p.bg};color:${p.ink};font-family:${p.font}`;
+  $("#stage").innerHTML = `<div class="inner">
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:6px">
+      <span style="font:700 .72rem var(--mono);letter-spacing:.16em;color:${p.accent}">${String(cur + 1).padStart(2, "0")}</span>
+      <span style="font:600 .72rem var(--mono);letter-spacing:.16em;text-transform:uppercase;opacity:.5">${p.name}</span>
+    </div>
+    ${VIEW[p.slug](p)}
+  </div>`;
+  $("#viewer").classList.add("on");
+  $("#pill").classList.add("on");
+  document.body.classList.add("locked");
+  $("#count").textContent = `${String(cur + 1).padStart(2, "0")}/${String(P.length).padStart(2, "0")}`;
+  $("#jump").value = String(cur);
+  $("#viewer").scrollTop = 0;
+}
+function close() {
+  $("#viewer").classList.remove("on");
+  $("#pill").classList.remove("on");
+  document.body.classList.remove("locked");
+  if (cur >= 0) document.querySelector(`.card[data-i="${cur}"]`)?.focus();
+  cur = -1;
+}
+document.querySelectorAll(".card").forEach((c) => c.onclick = () => open(+c.dataset.i));
+$("#prev").onclick = () => open(cur - 1);
+$("#next").onclick = () => open(cur + 1);
+$("#back").onclick = close;
+$("#jump").onchange = (e) => open(+e.target.value);
+addEventListener("keydown", (e) => {
+  if (cur < 0 || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  if (e.key === "ArrowLeft") open(cur - 1);
+  else if (e.key === "ArrowRight") open(cur + 1);
+  else if (e.key === "Escape") close();
+});
+</script>
+</body>
+</html>

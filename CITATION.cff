@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+title: "format-bench: a benchmark for data-format conversion"
+message: "If you use this benchmark, please cite it as below."
+type: dataset
+authors:
+  - family-names: Al Yacoub
+    given-names: Angelo
+    email: angeloalyacoub1@gmail.com
+repository-code: "https://github.com/hadestructhor/format-bench"
+url: "https://hadestructhor.github.io/format-bench/"
+abstract: >-
+  format-bench measures whether a language model can convert data between
+  serialization formats without corrupting it. 2,025 frozen test cases span nine
+  directions (text, JSON, YAML, CSV to JSON, YAML, CSV), five structural depth
+  levels, eight domains, and seven orthogonal transformation constraints (type
+  coercion, unit stripping, enum normalisation, range clamping, escaping,
+  wrapping, counting). Each case is graded on two axes: task (the correct value
+  appears anywhere in the reply) and strict (the whole reply is exactly the
+  value). Every model is measured twice, with and without a worked example.
+keywords:
+  - benchmark
+  - large language models
+  - structured output
+  - JSON
+  - YAML
+  - CSV
+  - data transformation
+license: Apache-2.0
+version: 1.0.0
+date-released: 2026-07-24

@@ -1,0 +1,59 @@
+{
+  "llama": {
+    "id": "llama",
+    "label": "llama-server (local)",
+    "apiKeyEnv": "LLAMA_API_KEY",
+    "base": { "openai": "http://localhost:8091/v1" },
+    "free": true
+  },
+  "requesty": {
+    "id": "requesty",
+    "label": "Requesty",
+    "apiKeyEnv": "REQUESTY_API_KEY",
+    "base": { "openai": "https://router.requesty.ai/v1" },
+    "free": true
+  },
+  "kilo": {
+    "id": "kilo",
+    "label": "Kilo",
+    "apiKeyEnv": "KILO_API_KEY",
+    "base": { "openai": "https://api.kilo.ai/api/gateway" },
+    "free": true
+  },
+  "ovh": {
+    "id": "ovh",
+    "label": "OVHcloud AI Endpoints",
+    "apiKeyEnv": "OVH_API_KEY",
+    "base": { "openai": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1" },
+    "free": true,
+    "minIntervalMs": 31000
+  },
+  "tokenrouter": {
+    "id": "tokenrouter",
+    "label": "TokenRouter",
+    "apiKeyEnv": "TOKENROUTER_API_KEY",
+    "base": { "openai": "https://api.tokenrouter.com/v1" },
+    "free": true
+  },
+  "grok": {
+    "id": "grok",
+    "label": "Grok (X CLI)",
+    "apiKeyEnv": "GROK_CLI_UNUSED",
+    "base": { "openai": "cli://grok" },
+    "free": true
+  },
+  "concentrate": {
+    "id": "concentrate",
+    "label": "Concentrate",
+    "apiKeyEnv": "CONCENTRATE_API_KEY",
+    "base": { "openai": "https://api.concentrate.ai/v1" },
+    "free": true
+  },
+  "orcarouter": {
+    "id": "orcarouter",
+    "label": "OrcaRouter",
+    "apiKeyEnv": "ORCAROUTER_API_KEY",
+    "base": { "openai": "https://api.orcarouter.ai/v1" },
+    "free": true
+  }
+}

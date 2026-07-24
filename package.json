@@ -1,0 +1,30 @@
+{
+  "name": "format-bench",
+  "version": "1.0.0",
+  "description": "A benchmark for data-format conversion: can a model turn text/JSON/YAML/CSV into JSON/YAML/CSV without breaking the data?",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Angelo Al Yacoub",
+  "homepage": "https://hadestructhor.github.io/format-bench/",
+  "repository": { "type": "git", "url": "https://github.com/hadestructhor/format-bench.git" },
+  "keywords": ["benchmark", "llm", "eval", "structured-output", "json", "yaml", "csv"],
+  "bin": {
+    "format-bench": "bench.ts"
+  },
+  "scripts": {
+    "bench": "bun bench.ts",
+    "gold": "bun bench.ts gold",
+    "dataset": "bun scripts/gen-convert.ts",
+    "site": "bun scripts/build-data.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun score.ts && bun bench.ts gold"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

@@ -1,0 +1,5 @@
+# zenmux free-tier model ids (verified live). glm-5.2-free and kimi-k2.7-code-free were retired from the
+# free tier (they now 404 as invalid_model); use nvidia for a free kimi (moonshotai/kimi-k2.6).
+stepfun/step-3.7-flash-free
+z-ai/glm-4.7-flash-free
+z-ai/glm-4.6v-flash-free

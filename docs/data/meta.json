@@ -1,0 +1,108 @@
+{
+  "generated": "2026-07-24T20:29:08.830Z",
+  "datasetSha": "fcf84c84ae574fcad2d41ebf162fc90ecddd0077710d04dfc33f0a7ed5c1827e",
+  "cases": 2025,
+  "models": 58,
+  "directions": [
+    "text>json",
+    "text>yaml",
+    "text>csv",
+    "json>yaml",
+    "json>csv",
+    "yaml>json",
+    "yaml>csv",
+    "csv>json",
+    "csv>yaml"
+  ],
+  "domains": [
+    "recipe",
+    "product",
+    "basket",
+    "profile",
+    "event",
+    "sensor",
+    "media",
+    "transaction"
+  ],
+  "levels": [
+    {
+      "n": 1,
+      "label": "flat record",
+      "desc": "a single object, every field present"
+    },
+    {
+      "n": 2,
+      "label": "a few fields",
+      "desc": "~3 items, still one record"
+    },
+    {
+      "n": 3,
+      "label": "list of tags",
+      "desc": "arrays of scalar values (≈6)"
+    },
+    {
+      "n": 4,
+      "label": "list of records",
+      "desc": "an array of sub-objects"
+    },
+    {
+      "n": 5,
+      "label": "nested groups",
+      "desc": "sub-objects that themselves nest (CSV directions stop at L3)"
+    }
+  ],
+  "challenges": [
+    {
+      "key": "type",
+      "desc": "numbers/booleans written as text → emit a real number/boolean"
+    },
+    {
+      "key": "unit",
+      "desc": "strip unit suffixes (\"30min\"→30, \"$5\"→5, \"500g\"→500)"
+    },
+    {
+      "key": "enum",
+      "desc": "normalise category text to its canonical form (\"Med\"→\"medium\")"
+    },
+    {
+      "key": "range",
+      "desc": "clamp out-of-range numbers (rating→0–5, score→0–100)"
+    },
+    {
+      "key": "count",
+      "desc": "keep only the first N items; drop the extras"
+    },
+    {
+      "key": "wrap",
+      "desc": "wrap the whole result under one top-level key"
+    },
+    {
+      "key": "escape",
+      "desc": "preserve special characters, escaped correctly for the target"
+    }
+  ],
+  "excluded": [
+    {
+      "provider": "nvidia",
+      "model": "thinkingmachines_inkling",
+      "mode": "ex",
+      "score": 8,
+      "otherScore": 71,
+      "shortRate": 0.11930926216640503,
+      "longRate": 0,
+      "otherLongRate": 0.7627118644067796,
+      "reason": "12% on short answers → 0% on long ones, while plain holds 76% on the same long cases"
+    },
+    {
+      "provider": "kilo",
+      "model": "nvidia_nemotron-3-ultra-550b-a55b_free",
+      "mode": "ex",
+      "score": 26,
+      "otherScore": 74,
+      "shortRate": 0.3453689167974882,
+      "longRate": 0,
+      "otherLongRate": 0.7450980392156863,
+      "reason": "35% on short answers → 0% on long ones, while plain holds 75% on the same long cases"
+    }
+  ]
+}

@@ -1,0 +1,854 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>format-bench — can models convert data without breaking it?</title>
+<meta name="description" content="A benchmark for data-format conversion: 2,025 cases across nine directions between text, JSON, YAML and CSV, graded on exact data and exact format.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232a78d6'/%3E%3Ctext x='8' y='12' font-family='monospace' font-size='11' font-weight='700' fill='%23fff' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+<style>
+/* ── tokens ───────────────────────────────────────────────────────────────
+   Palette is the validated dataviz reference instance, re-stepped for these
+   surfaces and checked with validate_palette.js in both modes.
+   Series 1 = hosted (blue), series 2 = local (orange).                     */
+:root {
+  color-scheme: light;
+  --surface: #fbfbf9;
+  --plane: #f4f4f1;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --rule: #c3c2b7;
+  --border: rgba(11, 11, 11, .10);
+
+  --hosted: #2a78d6;
+  --local: #eb6834;
+  --good: #0ca30c;
+  --bad: #d03b3b;
+  --warn: #fab219;
+
+  /* sequential blue, 100 → 700 (magnitude) */
+  --s1: #cde2fb; --s2: #9ec5f4; --s3: #6da7ec; --s4: #3987e5;
+  --s5: #256abf; --s6: #184f95; --s7: #0d366b;
+  --mid: #f0efec;
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #14161c; --plane: #0d0f13; --raised: #1a1d25;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #262a33; --rule: #383c47; --border: rgba(255,255,255,.10);
+    --hosted: #3987e5; --local: #d95926; --good: #0ca30c; --bad: #d03b3b;
+    --s1: #0d366b; --s2: #184f95; --s3: #256abf; --s4: #3987e5;
+    --s5: #6da7ec; --s6: #9ec5f4; --s7: #cde2fb;
+    --mid: #383835;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #14161c; --plane: #0d0f13; --raised: #1a1d25;
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #262a33; --rule: #383c47; --border: rgba(255,255,255,.10);
+  --hosted: #3987e5; --local: #d95926; --good: #0ca30c; --bad: #d03b3b;
+  --s1: #0d366b; --s2: #184f95; --s3: #256abf; --s4: #3987e5;
+  --s5: #6da7ec; --s6: #9ec5f4; --s7: #cde2fb;
+  --mid: #383835;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--plane); color: var(--ink);
+  font: 400 15px/1.55 var(--sans);
+  font-feature-settings: "ss01";
+}
+.wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+a { color: inherit; }
+h1, h2, h3 { line-height: 1.15; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+:focus-visible { outline: 2px solid var(--hosted); outline-offset: 2px; border-radius: 3px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-family: var(--mono); font-size: .7rem; letter-spacing: .16em;
+  text-transform: uppercase; color: var(--muted);
+}
+
+/* ── header ─────────────────────────────────────────────────────────── */
+header { border-bottom: 1px solid var(--border); background: var(--surface); }
+.hrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; font-weight: 650; letter-spacing: -.02em; }
+.brand .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--hosted); }
+.hlinks { display: flex; gap: 6px; align-items: center; }
+.btn {
+  font: 500 13px var(--sans); color: var(--ink-2); background: transparent;
+  border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer;
+}
+.btn:hover { background: var(--plane); color: var(--ink); }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+.hero { padding: 44px 0 32px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.hero h1 { font-size: clamp(1.9rem, 4.6vw, 3.1rem); font-weight: 680; max-width: 20ch; }
+.hero p { color: var(--ink-2); max-width: 62ch; margin: 14px 0 0; font-size: 1.02rem; }
+.stats { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 28px; }
+.stat b { display: block; font-size: 1.7rem; font-weight: 660; letter-spacing: -.02em; }
+.stat span { font-family: var(--mono); font-size: .7rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+/* ── tabs ───────────────────────────────────────────────────────────── */
+nav.tabs { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+nav.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; }
+nav.tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  padding: 13px 14px; font: 500 14px var(--sans); color: var(--muted); white-space: nowrap;
+}
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--hosted); }
+
+section.view { display: none; padding: 32px 0 72px; }
+section.view.on { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+.card + .card { margin-top: 22px; }
+.card > h2 { font-size: 1.05rem; padding: 16px 18px 0; }
+.card > .sub { color: var(--muted); font-size: .86rem; padding: 5px 18px 0; max-width: 76ch; }
+.card > .body { padding: 16px 18px 18px; }
+
+/* ── controls ───────────────────────────────────────────────────────── */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.controls input[type=search], .controls select {
+  font: 400 13px var(--sans); color: var(--ink); background: var(--raised);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+}
+.controls input[type=search] { min-width: 190px; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button + button { border-left: 1px solid var(--border); }
+
+/* ── table ──────────────────────────────────────────────────────────── */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th:nth-child(2), td:nth-child(2) { text-align: left; white-space: normal; min-width: 210px; }
+th { position: sticky; top: 47px; background: var(--surface); font-weight: 600; color: var(--ink-2);
+     font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; z-index: 5; }
+th:hover { color: var(--ink); }
+th[aria-sort] { color: var(--ink); }
+th[aria-sort="descending"]::after { content: " ↓"; }
+th[aria-sort="ascending"]::after { content: " ↑"; }
+tbody tr:hover { background: var(--plane); }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.mname { display: flex; align-items: center; gap: 8px; }
+.mname .tag { width: 7px; height: 7px; border-radius: 999px; flex: none; }
+.mname .sm { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+.pill { font: 600 10.5px var(--mono); padding: 2px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); }
+.up { color: var(--good); } .down { color: var(--bad); }
+button.link { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+button.link:hover { text-decoration: underline; }
+
+/* ── charts ─────────────────────────────────────────────────────────── */
+svg { display: block; max-width: 100%; }
+svg text { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--rule); stroke-width: 1; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
+.legend i { width: 9px; height: 9px; border-radius: 999px; display: inline-block; margin-right: 6px; vertical-align: middle; }
+.hint { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+#tip {
+  position: fixed; z-index: 100; pointer-events: none; opacity: 0; transition: opacity .1s;
+  background: var(--raised); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-width: 280px;
+}
+#tip b { display: block; margin-bottom: 3px; }
+#tip .r { font-family: var(--mono); color: var(--ink-2); }
+
+/* ── case explorer ──────────────────────────────────────────────────── */
+.split { display: grid; grid-template-columns: 320px 1fr; gap: 0; min-height: 560px; }
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } .caselist { max-height: 280px; } }
+.caselist { border-right: 1px solid var(--border); overflow-y: auto; max-height: 620px; }
+.caselist button {
+  display: block; width: 100%; text-align: left; background: none; border: 0;
+  border-bottom: 1px solid var(--grid); padding: 9px 14px; cursor: pointer; color: var(--ink); font: inherit;
+}
+.caselist button:hover { background: var(--plane); }
+.caselist button[aria-current="true"] { background: var(--plane); box-shadow: inset 3px 0 0 var(--hosted); }
+.caselist .cid { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.caselist .cdir { font-size: 12.5px; margin-top: 1px; }
+.detail { padding: 18px; overflow-x: auto; }
+.kv { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+pre {
+  margin: 0; background: var(--plane); border: 1px solid var(--border); border-radius: 8px;
+  padding: 11px 13px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-word; max-height: 320px; overflow-y: auto;
+}
+.detail h3 { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
+             font-family: var(--mono); font-weight: 600; margin: 16px 0 7px; }
+.detail h3:first-of-type { margin-top: 0; }
+.verdicts { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.verdicts table { font-size: 12.5px; }
+.verdicts th { top: 0; }
+.vmark { font-family: var(--mono); font-weight: 700; }
+
+/* ── prose ──────────────────────────────────────────────────────────── */
+.prose { max-width: 74ch; }
+.prose h2 { font-size: 1.35rem; margin: 34px 0 10px; }
+.prose h3 { font-size: 1rem; margin: 22px 0 6px; }
+.prose p, .prose li { color: var(--ink-2); }
+.prose code { font-family: var(--mono); font-size: .88em; background: var(--plane);
+              border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.prose table { margin: 12px 0; font-size: 13px; }
+.prose th, .prose td { text-align: left; }
+.prose th:first-child, .prose td:first-child { white-space: nowrap; }
+.note { border-left: 3px solid var(--warn); background: var(--surface); padding: 12px 16px;
+        border-radius: 0 8px 8px 0; margin: 16px 0; }
+.note b { color: var(--ink); }
+footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(--muted); font-size: 13px; background: var(--surface); }
+.loading { padding: 60px 0; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hrow">
+    <div class="brand"><span class="dot"></span>format-bench</div>
+    <div class="hlinks">
+      <a class="btn" href="https://github.com/hadestructhor/format-bench">GitHub</a>
+      <a class="btn" href="https://huggingface.co/datasets/hadestructhor/format-bench">Dataset</a>
+      <button class="btn" id="theme" title="Toggle theme" aria-label="Toggle colour theme">◐</button>
+    </div>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Data-format conversion benchmark</div>
+    <h1 style="margin-top:10px">Can a model rewrite your data without breaking it?</h1>
+    <p>
+      Converting between text, JSON, YAML and CSV looks trivial and isn't. A model has to keep every field,
+      infer the types CSV threw away, strip units, clamp ranges, escape correctly — and emit the target format
+      and nothing else. This benchmark measures exactly that, on <span class="mono">2,025</span> frozen cases
+      across nine directions, with every model run twice: once with plain instructions, once with a worked example.
+    </p>
+    <div class="stats">
+      <div class="stat"><b class="mono" id="s-models">—</b><span>models</span></div>
+      <div class="stat"><b class="mono">2,025</b><span>test cases</span></div>
+      <div class="stat"><b class="mono">9</b><span>directions</span></div>
+      <div class="stat"><b class="mono">7</b><span>constraints</span></div>
+      <div class="stat"><b class="mono" id="s-top">—</b><span>best task score</span></div>
+    </div>
+  </div>
+</div>
+
+<nav class="tabs">
+  <div class="wrap" role="tablist">
+    <button role="tab" aria-selected="true" data-v="board">Leaderboard</button>
+    <button role="tab" aria-selected="false" data-v="charts">Charts</button>
+    <button role="tab" aria-selected="false" data-v="cases">Explore cases</button>
+    <button role="tab" aria-selected="false" data-v="method">Methodology</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="loading" id="loading">loading results…</div>
+
+  <!-- ── leaderboard ─────────────────────────────────────────────── -->
+  <section class="view on" id="v-board" role="tabpanel" hidden>
+    <div class="card">
+      <h2>Leaderboard</h2>
+      <p class="sub">
+        <b>task</b> — the correct value appears somewhere in the reply. <b>strict</b> — the whole reply is
+        exactly that value, no prose, no fences. <b>Δ</b> — what the worked example changed. Click a model for its
+        per-case detail; click a column to sort.
+      </p>
+      <div class="body">
+        <div class="controls">
+          <input type="search" id="q" placeholder="Filter models…" aria-label="Filter models">
+          <div class="seg" role="group" aria-label="Deployment filter">
+            <button class="btn" data-f="all" aria-pressed="true">All</button>
+            <button class="btn" data-f="hosted" aria-pressed="false">Hosted</button>
+            <button class="btn" data-f="local" aria-pressed="false">Local</button>
+          </div>
+          <select id="dirsel" aria-label="Direction">
+            <option value="task">Overall</option>
+          </select>
+          <span class="hint" id="count"></span>
+        </div>
+        <div class="scroll"><table id="board">
+          <thead><tr>
+            <th data-k="rank" style="cursor:default">#</th>
+            <th data-k="name">Model</th>
+            <th data-k="params">Size</th>
+            <th data-k="ptask">Task · plain</th>
+            <th data-k="pstrict">Strict · plain</th>
+            <th data-k="etask">Task · ex</th>
+            <th data-k="estrict">Strict · ex</th>
+            <th data-k="delta">Δ</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── charts ──────────────────────────────────────────────────── -->
+  <section class="view" id="v-charts" role="tabpanel" hidden>
+    <div class="card">
+      <h2>Score against model size</h2>
+      <p class="sub">Best of the two prompt modes. Models with undisclosed parameter counts are omitted.</p>
+      <div class="body">
+        <div id="scatter"></div>
+        <div class="legend">
+          <span><i style="background:var(--hosted)"></i>Hosted API</span>
+          <span><i style="background:var(--local)"></i>Local (llama.cpp)</span>
+          <span class="hint">↖ upper-left is better — smaller model, higher score</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Where models struggle</h2>
+      <p class="sub">Task score per conversion direction, top 20 models. Darker is better.</p>
+      <div class="body"><div class="scroll" id="heat"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>What each constraint costs</h2>
+      <p class="sub">
+        Task score on cases carrying each constraint, averaged over every model, against the
+        no-constraint baseline. Each one is an independent instruction the model has to honour while reformatting.
+      </p>
+      <div class="body"><div id="chal"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Does a worked example help?</h2>
+      <p class="sub">
+        Change in task score when one solved example of the same direction is prepended to the prompt.
+        Blue = the example helped, red = it hurt.
+      </p>
+      <div class="body"><div id="delta"></div></div>
+    </div>
+  </section>
+
+  <!-- ── cases ───────────────────────────────────────────────────── -->
+  <section class="view" id="v-cases" role="tabpanel" hidden>
+    <div class="card">
+      <h2>Explore the test set</h2>
+      <p class="sub">Every one of the 2,025 cases, with the reference answer and how each model did on it.</p>
+      <div class="body" style="padding-bottom:0">
+        <div class="controls">
+          <select id="f-dir" aria-label="Direction"><option value="">Any direction</option></select>
+          <select id="f-lvl" aria-label="Level"><option value="">Any level</option></select>
+          <select id="f-chal" aria-label="Constraint"><option value="">Any constraint</option></select>
+          <select id="f-dom" aria-label="Domain"><option value="">Any domain</option></select>
+          <input type="search" id="f-q" placeholder="Case id…" aria-label="Case id">
+          <span class="hint" id="ccount"></span>
+        </div>
+      </div>
+      <div class="split">
+        <div class="caselist" id="clist"></div>
+        <div class="detail" id="cdetail"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── methodology ─────────────────────────────────────────────── -->
+  <section class="view" id="v-method" role="tabpanel" hidden>
+    <div class="card"><div class="body prose">
+      <h2 style="margin-top:0">What is measured</h2>
+      <p>
+        Each case gives the model data in one format and asks for it in another, plus a set of transformation
+        rules. The reply is graded on two axes:
+      </p>
+      <ul>
+        <li><b>task</b> — the correct value appears anywhere in the reply. Prose and code fences are tolerated.
+          This asks: <i>did the conversion work?</i></li>
+        <li><b>strict</b> — the entire trimmed reply parses as the target format and equals the expected value.
+          This asks: <i>can it follow "reply with only the value"?</i></li>
+      </ul>
+      <p>
+        Comparison is structural, not textual: object keys are order-insensitive, arrays are ordered, and types
+        are strict — <code>"22"</code> is not <code>22</code>. A reply that says <code>{"rating": "5"}</code> when
+        the answer is <code>{"rating": 5}</code> is wrong, because preserving types is the whole job.
+      </p>
+
+      <h2>The axes</h2>
+      <h3>Directions (9)</h3>
+      <p>text→json · text→yaml · text→csv · json→yaml · json→csv · yaml→json · yaml→csv · csv→json · csv→yaml</p>
+      <p>
+        The CSV→* directions are the hardest, and that is not an accident: CSV erases types, so the model has to
+        reconstruct which cells were numbers, which were booleans, and which were strings that merely look numeric.
+      </p>
+      <h3>Structural levels (5)</h3>
+      <table id="m-levels"></table>
+      <h3>Constraints (7)</h3>
+      <p>Each is an orthogonal instruction, combined in tiers from zero to all-applicable:</p>
+      <table id="m-chal"></table>
+      <h3>Domains (8)</h3>
+      <p id="m-dom"></p>
+
+      <h2>Prompt modes</h2>
+      <p>
+        Every model is measured twice. <b>plain</b> sends the instructions alone. <b>explained</b> prepends one
+        solved example of the same direction, drawn from a train split that shares no inputs with the test set.
+        The difference between them is the Δ column.
+      </p>
+
+      <h2>Limitations</h2>
+      <div class="note">
+        <b>The <code>enum</code> constraint is partly unguessable in v1.0.</b> It asks the model to normalise
+        category text to a canonical form, giving examples like <code>IN STOCK → in_stock</code>. But some
+        expected values cannot be derived from the instruction: <code>Pre-order → preorder</code> drops the
+        underscore that the given example implies, and <code>clear → cleared</code> is a different word, not a
+        case normalisation. On those cases the benchmark measures vocabulary guessing rather than
+        instruction-following. The dataset is frozen for v1.0 so that all published scores stay comparable;
+        the leaderboard therefore also carries a <b>task score with enum cases removed</b>. v1.1 will state the
+        allowed vocabulary in the instruction — a prompt-only change that leaves every expected answer identical.
+      </div>
+      <div class="note">
+        <b>Levels are comparable within a direction, not across.</b> Levels 1–3 include the CSV directions while
+        4–5 are nested-only, so the level axis is confounded with direction difficulty. Read the level curve
+        inside one direction at a time.
+      </div>
+      <div class="note">
+        <b>Two runs are withheld.</b> An earlier harness capped output at 2,048 tokens. Reasoning models spent
+        that budget thinking and were cut off before writing the answer, which scored as a wrong answer rather
+        than an infrastructure failure. Those runs are excluded here rather than shown, and the harness now
+        treats a truncated reply as an error that is retried, never as a zero.
+      </div>
+
+      <h2>Reproducing this</h2>
+      <p>The harness talks to any OpenAI-compatible endpoint:</p>
+      <pre>git clone https://github.com/hadestructhor/format-bench
+cd format-bench &amp;&amp; bun install
+
+# prove the harness agrees with the reference answers (should print 2025/2025)
+bun bench.ts gold
+
+# score your own model
+bun bench.ts run --base-url http://localhost:8000/v1 --api-key sk-… \
+  -m my-model --save-responses
+bun bench.ts run --base-url http://localhost:8000/v1 --api-key sk-… \
+  -m my-model --explain --save-responses</pre>
+      <p id="m-sha" class="hint" style="margin-top:14px"></p>
+    </div></div>
+  </section>
+</main>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<footer><div class="wrap">
+  format-bench · Apache-2.0 · <a href="https://github.com/hadestructhor/format-bench">source</a> ·
+  built by Angelo Al Yacoub · <span id="f-gen" class="mono"></span>
+</div></footer>
+
+<script type="module">
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const pretty = (v) => typeof v === "string" ? v : JSON.stringify(v, null, 2);
+
+// ── theme ──────────────────────────────────────────────────────────────
+const root = document.documentElement;
+$("#theme").onclick = () => {
+  const cur = root.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+  draw();  // charts bake theme colours into attributes, so repaint on switch
+};
+
+// ── data ───────────────────────────────────────────────────────────────
+let META, BOARD, CASES, MODELCACHE = new Map();
+const cssv = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+
+try {
+  [META, BOARD, CASES] = await Promise.all(
+    ["meta", "board", "cases"].map((f) => fetch(`data/${f}.json`).then((r) => {
+      if (!r.ok) throw new Error(`${f}.json — HTTP ${r.status}`);
+      return r.json();
+    })),
+  );
+} catch (e) {
+  $("#loading").innerHTML = `could not load results: ${esc(e.message)}<br><br>` +
+    `If you are opening this file directly, serve it instead:<br><code>python3 -m http.server -d docs</code>`;
+  throw e;
+}
+$("#loading").remove();
+$$(".view").forEach((v) => v.removeAttribute("hidden"));
+
+$("#s-models").textContent = BOARD.length;
+$("#s-top").textContent = Math.max(...BOARD.map((m) => Math.max(m.plain.task, m.ex.task)));
+$("#f-gen").textContent = new Date(META.generated).toISOString().slice(0, 10);
+$("#m-sha").textContent = `dataset sha256 ${META.datasetSha}`;
+
+// ── tabs ───────────────────────────────────────────────────────────────
+$$('nav.tabs button').forEach((b) => b.onclick = () => {
+  $$('nav.tabs button').forEach((x) => x.setAttribute("aria-selected", String(x === b)));
+  $$(".view").forEach((v) => v.classList.toggle("on", v.id === `v-${b.dataset.v}`));
+  if (b.dataset.v === "charts") draw();
+  if (b.dataset.v === "cases" && !$("#clist").children.length) renderCases();
+});
+
+// ── tooltip ────────────────────────────────────────────────────────────
+const tip = $("#tip");
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = "1";
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => tip.style.opacity = "0";
+function hoverable(el, html) {
+  el.addEventListener("mousemove", (e) => showTip(e, html));
+  el.addEventListener("mouseleave", hideTip);
+}
+
+// ── leaderboard ────────────────────────────────────────────────────────
+const DIRS = META.directions;
+$("#dirsel").insertAdjacentHTML("beforeend",
+  DIRS.map((d) => `<option value="${d}">${d.replace(">", " → ")}</option>`).join(""));
+
+let filter = "all", sortK = "etask", sortDir = -1, dirKey = "task";
+const val = (m, k) => ({
+  name: m.name, params: m.params ?? -1,
+  ptask: dirKey === "task" ? m.plain.task : m.plain.dir[dirKey],
+  pstrict: m.plain.strict, etask: dirKey === "task" ? m.ex.task : m.ex.dir[dirKey],
+  estrict: m.ex.strict, delta: m.delta,
+}[k]);
+
+function rows() {
+  const q = $("#q").value.trim().toLowerCase();
+  let r = BOARD.filter((m) =>
+    (filter === "all" || (filter === "local") === m.local) &&
+    (!q || m.name.toLowerCase().includes(q)));
+  r.sort((a, b) => {
+    const x = val(a, sortK), y = val(b, sortK);
+    if (typeof x === "string") return sortDir * x.localeCompare(y);
+    // sortDir -1 means descending, so the numeric comparator needs the opposite sign to the string one.
+    return -sortDir * ((y ?? -1) - (x ?? -1));
+  });
+  return r;
+}
+const fmtSize = (m) => m.params == null ? "—"
+  : m.params >= 1e6 ? (m.params / 1e6).toFixed(1).replace(/\.0$/, "") + "T"
+  : m.params >= 1000 ? (m.params / 1000).toFixed(m.params % 1000 ? 1 : 0).replace(/\.0$/, "") + "B"
+  : m.params + "M";
+const n = (v) => v == null ? '<span style="color:var(--muted)">—</span>' : v;
+
+function renderBoard() {
+  const r = rows();
+  $("#count").textContent = `${r.length} model${r.length === 1 ? "" : "s"}`;
+  $("#board tbody").innerHTML = r.map((m, i) => `
+    <tr>
+      <td class="num" style="color:var(--muted)">${i + 1}</td>
+      <td><div class="mname">
+        <span class="tag" style="background:${m.local ? "var(--local)" : "var(--hosted)"}"
+              title="${m.local ? "local" : "hosted"}"></span>
+        <span><button class="link" data-slug="${m.slug}">${esc(m.model)}</button>
+        <span class="sm">${esc(m.provider)}</span></span>
+      </div></td>
+      <td class="num" title="${esc(m.sizeLabel)}${m.active ? ` · ${esc(m.active)} active` : ""}">
+        ${fmtSize(m)}${m.active ? "<sup>*</sup>" : ""}</td>
+      <td class="num">${n(val(m, "ptask"))}</td>
+      <td class="num" style="color:var(--ink-2)">${n(m.plain.strict)}</td>
+      <td class="num"><b>${n(val(m, "etask"))}</b></td>
+      <td class="num" style="color:var(--ink-2)">${n(m.ex.strict)}</td>
+      <td class="num ${m.delta > 0 ? "up" : m.delta < 0 ? "down" : ""}">${m.delta > 0 ? "+" : ""}${m.delta}</td>
+    </tr>`).join("");
+  $$("#board th[data-k]").forEach((th) =>
+    th.dataset.k === sortK ? th.setAttribute("aria-sort", sortDir < 0 ? "descending" : "ascending")
+                           : th.removeAttribute("aria-sort"));
+  $$("#board button.link").forEach((b) => b.onclick = () => openModel(b.dataset.slug));
+}
+$$("#board th[data-k]").forEach((th) => {
+  if (th.dataset.k === "rank") return;
+  th.onclick = () => {
+    if (sortK === th.dataset.k) sortDir *= -1;
+    else { sortK = th.dataset.k; sortDir = th.dataset.k === "name" ? 1 : -1; }
+    renderBoard();
+  };
+});
+$("#q").oninput = renderBoard;
+$("#dirsel").onchange = (e) => { dirKey = e.target.value; renderBoard(); };
+$$('.seg button').forEach((b) => b.onclick = () => {
+  filter = b.dataset.f;
+  $$('.seg button').forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  renderBoard();
+});
+renderBoard();
+
+// ── charts ─────────────────────────────────────────────────────────────
+const SVG = "http://www.w3.org/2000/svg";
+const el = (t, a = {}) => { const n = document.createElementNS(SVG, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
+
+function drawScatter() {
+  const host = $("#scatter"); host.innerHTML = "";
+  const pts = BOARD.filter((m) => m.params != null);
+  if (!pts.length) return;
+  const W = Math.min(host.clientWidth || 900, 1100), H = 400;
+  const P = { l: 44, r: 16, t: 14, b: 40 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, role: "img",
+                          "aria-label": "Model size against best task score" });
+  // x = log10 params (millions), y = score
+  const xs = pts.map((p) => Math.log10(p.params));
+  const x0 = Math.floor(Math.min(...xs) * 2) / 2, x1 = Math.ceil(Math.max(...xs) * 2) / 2;
+  const X = (v) => P.l + ((Math.log10(v) - x0) / (x1 - x0)) * (W - P.l - P.r);
+  const Y = (v) => H - P.b - (v / 100) * (H - P.t - P.b);
+
+  for (let g = 0; g <= 100; g += 20) {
+    svg.append(el("line", { x1: P.l, x2: W - P.r, y1: Y(g), y2: Y(g), class: "gridline" }));
+    const t = el("text", { x: P.l - 7, y: Y(g) + 3, "text-anchor": "end" }); t.textContent = g; svg.append(t);
+  }
+  const ticks = [100, 1000, 10000, 100000, 1000000].filter((v) => Math.log10(v) >= x0 && Math.log10(v) <= x1);
+  for (const tv of ticks) {
+    svg.append(el("line", { x1: X(tv), x2: X(tv), y1: P.t, y2: H - P.b, class: "gridline" }));
+    const t = el("text", { x: X(tv), y: H - P.b + 16, "text-anchor": "middle" });
+    t.textContent = tv >= 1e6 ? tv / 1e6 + "T" : tv >= 1000 ? tv / 1000 + "B" : tv + "M";
+    svg.append(t);
+  }
+  svg.append(el("line", { x1: P.l, x2: W - P.r, y1: H - P.b, y2: H - P.b, class: "axis" }));
+  svg.append(el("line", { x1: P.l, x2: P.l, y1: P.t, y2: H - P.b, class: "axis" }));
+  // Rotated along the axis so it can't collide with the topmost tick label.
+  const yl = el("text", { transform: `translate(11,${(H - P.b + P.t) / 2}) rotate(-90)`, "text-anchor": "middle" });
+  yl.textContent = "task score"; svg.append(yl);
+  const xl = el("text", { x: W - P.r, y: H - 6, "text-anchor": "end" }); xl.textContent = "parameters (log)"; svg.append(xl);
+
+  for (const p of pts) {
+    const best = Math.max(p.plain.task, p.ex.task);
+    // 2px surface ring so overlapping points stay separable (marks-and-anatomy)
+    const c = el("circle", { cx: X(p.params), cy: Y(best), r: 5.5,
+      fill: p.local ? cssv("--local") : cssv("--hosted"),
+      stroke: cssv("--surface"), "stroke-width": 2, style: "cursor:pointer" });
+    hoverable(c, `<b>${esc(p.model)}</b><span class="r">${esc(p.provider)} · ${esc(p.sizeLabel)}` +
+      `${p.active ? ` (${esc(p.active)} active)` : ""}<br>task ${p.plain.task} plain · ${p.ex.task} explained</span>`);
+    c.onclick = () => openModel(p.slug);
+    svg.append(c);
+  }
+  host.append(svg);
+}
+
+function drawHeat() {
+  const host = $("#heat"); host.innerHTML = "";
+  const top = BOARD.slice(0, 20);
+  const ramp = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7"].map(cssv);
+  const colour = (v) => v == null ? cssv("--mid") : ramp[Math.min(6, Math.floor((v / 100) * 7))];
+  // Label contrast is measured off the fill that actually gets painted. Keying it to the value instead put
+  // white text on mid-blue wherever the quantiser landed a step lighter than assumed — and the ramp inverts
+  // between themes, so any fixed value threshold is wrong in one of the two modes.
+  const inkOn = (fill) => {
+    const [r, g, b] = (fill.match(/\w\w/g) ?? ["80", "80", "80"]).map((h) => {
+      const c = parseInt(h, 16) / 255;
+      return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4;
+    });
+    const L = .2126 * r + .7152 * g + .0722 * b;
+    // Take whichever ink contrasts better rather than guessing a lightness threshold — at 10px these
+    // labels need every point of contrast, and a fixed cut leaves mid-blue cells at ~3.6:1.
+    return (L + .05) / .05 > 1.05 / (L + .05) ? "#0b0b0b" : "#ffffff";
+  };
+  const cw = 62, ch = 26, lw = 190;
+  const W = lw + DIRS.length * cw + 8, H = 30 + top.length * ch;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
+                          "aria-label": "Task score per direction for the top 20 models" });
+  DIRS.forEach((d, i) => {
+    const t = el("text", { x: lw + i * cw + cw / 2, y: 18, "text-anchor": "middle" });
+    t.textContent = d.replace(">", "→"); svg.append(t);
+  });
+  top.forEach((m, r) => {
+    const y = 30 + r * ch;
+    const t = el("text", { x: lw - 8, y: y + ch / 2 + 3, "text-anchor": "end", fill: cssv("--ink-2") });
+    t.textContent = m.model.length > 26 ? m.model.slice(0, 25) + "…" : m.model;
+    svg.append(t);
+    DIRS.forEach((d, i) => {
+      const v = Math.max(m.ex.dir[d] ?? -1, m.plain.dir[d] ?? -1);
+      const val = v < 0 ? null : v;
+      const fill = colour(val);
+      // 2px gap between fills so adjacent cells never merge
+      const rect = el("rect", { x: lw + i * cw + 1, y: y + 1, width: cw - 2, height: ch - 2, rx: 3,
+                                fill, style: "cursor:default" });
+      hoverable(rect, `<b>${esc(m.model)}</b><span class="r">${d.replace(">", " → ")} · task ${val ?? "—"}</span>`);
+      svg.append(rect);
+      const lt = el("text", { x: lw + i * cw + cw / 2, y: y + ch / 2 + 3.5, "text-anchor": "middle",
+                              fill: inkOn(fill), "font-size": 10 });
+      lt.textContent = val ?? "—"; svg.append(lt);
+    });
+  });
+  host.append(svg);
+}
+
+function drawChal() {
+  const host = $("#chal"); host.innerHTML = "";
+  const avg = (f) => { const v = BOARD.map(f).filter((x) => x != null); return v.reduce((a, b) => a + b, 0) / v.length; };
+  const base = avg((m) => m.plain.noChallenge);
+  const data = META.challenges.map((c) => ({ key: c.key, desc: c.desc, v: avg((m) => m.plain.challenge[c.key]) }))
+    .sort((a, b) => a.v - b.v);
+  const W = Math.min(host.clientWidth || 900, 1100), rowH = 34, H = data.length * rowH + 34, lw = 78;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, role: "img",
+                          "aria-label": "Average task score per constraint" });
+  const X = (v) => lw + (v / 100) * (W - lw - 54);
+  svg.append(el("line", { x1: X(base), x2: X(base), y1: 8, y2: H - 22, stroke: cssv("--rule"),
+                          "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
+  const bl = el("text", { x: X(base), y: H - 8, "text-anchor": "middle", fill: cssv("--ink-2") });
+  bl.textContent = `no constraint · ${base.toFixed(0)}`; svg.append(bl);
+  data.forEach((d, i) => {
+    const y = 12 + i * rowH;
+    const t = el("text", { x: lw - 8, y: y + 15, "text-anchor": "end", fill: cssv("--ink"), "font-size": 11 });
+    t.textContent = d.key; svg.append(t);
+    const bar = el("rect", { x: lw, y: y + 4, width: Math.max(2, X(d.v) - lw), height: 18, rx: 4, fill: cssv("--s4") });
+    hoverable(bar, `<b>${d.key}</b><span class="r">${esc(d.desc)}<br>${d.v.toFixed(1)} vs ${base.toFixed(1)} baseline · ${(d.v - base).toFixed(1)}</span>`);
+    svg.append(bar);
+    const vt = el("text", { x: X(d.v) + 7, y: y + 17, fill: cssv("--ink-2") });
+    vt.textContent = `${d.v.toFixed(0)}  (${(d.v - base).toFixed(0)})`; svg.append(vt);
+  });
+  host.append(svg);
+}
+
+function drawDelta() {
+  const host = $("#delta"); host.innerHTML = "";
+  const data = [...BOARD].filter((m) => m.delta !== 0).sort((a, b) => b.delta - a.delta);
+  if (!data.length) { host.innerHTML = '<p class="hint">no deltas</p>'; return; }
+  const W = Math.min(host.clientWidth || 900, 1100), bw = Math.max(4, Math.min(16, (W - 60) / data.length));
+  const H = 240, mid = H / 2, span = Math.max(...data.map((d) => Math.abs(d.delta))) || 1;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, role: "img",
+                          "aria-label": "Change in task score from the worked example, per model" });
+  svg.append(el("line", { x1: 30, x2: W - 8, y1: mid, y2: mid, class: "axis" }));
+  data.forEach((d, i) => {
+    const h = (Math.abs(d.delta) / span) * (mid - 26);
+    const x = 34 + i * bw;
+    const r = el("rect", { x, y: d.delta > 0 ? mid - h : mid, width: Math.max(2, bw - 2), height: Math.max(1.5, h),
+                           rx: 2, fill: d.delta > 0 ? cssv("--s4") : cssv("--bad"), style: "cursor:pointer" });
+    hoverable(r, `<b>${esc(d.model)}</b><span class="r">${d.delta > 0 ? "+" : ""}${d.delta} pts with the example<br>` +
+      `${d.plain.task} plain → ${d.ex.task} explained</span>`);
+    r.onclick = () => openModel(d.slug);
+    svg.append(r);
+  });
+  const up = el("text", { x: 4, y: 14, fill: cssv("--ink-2") }); up.textContent = "helped"; svg.append(up);
+  const dn = el("text", { x: 4, y: H - 6, fill: cssv("--ink-2") }); dn.textContent = "hurt"; svg.append(dn);
+  const nHelp = data.filter((d) => d.delta > 0).length;
+  host.append(svg);
+  host.insertAdjacentHTML("beforeend",
+    `<p class="hint" style="margin-top:8px">${nHelp} models helped · ${data.length - nHelp} hurt · ` +
+    `${BOARD.length - data.length} unchanged</p>`);
+}
+
+let drawn = false;
+function draw() { drawScatter(); drawHeat(); drawChal(); drawDelta(); drawn = true; }
+addEventListener("resize", () => { if (drawn) draw(); });
+
+// ── case explorer ──────────────────────────────────────────────────────
+const byId = new Map(CASES.map((c) => [c.id, c]));
+$("#f-dir").insertAdjacentHTML("beforeend", DIRS.map((d) => `<option value="${d}">${d.replace(">", " → ")}</option>`).join(""));
+$("#f-lvl").insertAdjacentHTML("beforeend", META.levels.map((l) => `<option value="${l.n}">L${l.n} — ${l.label}</option>`).join(""));
+$("#f-chal").insertAdjacentHTML("beforeend", META.challenges.map((c) => `<option value="${c.key}">${c.key}</option>`).join(""));
+$("#f-dom").insertAdjacentHTML("beforeend", META.domains.map((d) => `<option value="${d}">${d}</option>`).join(""));
+
+let curCase = null;
+function filteredCases() {
+  const d = $("#f-dir").value, l = $("#f-lvl").value, c = $("#f-chal").value,
+        dm = $("#f-dom").value, q = $("#f-q").value.trim().toLowerCase();
+  return CASES.filter((x) =>
+    (!d || `${x.from}>${x.to}` === d) && (!l || String(x.level) === l) &&
+    (!c || x.challenges.includes(c)) && (!dm || x.domain === dm) &&
+    (!q || x.id.includes(q)));
+}
+function renderCases() {
+  const list = filteredCases();
+  $("#ccount").textContent = `${list.length} case${list.length === 1 ? "" : "s"}`;
+  $("#clist").innerHTML = list.slice(0, 400).map((c) => `
+    <button data-id="${c.id}" aria-current="${c.id === curCase}">
+      <div class="cid">${c.id} · L${c.level} · ${c.difficulty}</div>
+      <div class="cdir">${c.from} → ${c.to}<span style="color:var(--muted)"> · ${c.domain}</span></div>
+    </button>`).join("") + (list.length > 400 ? `<div style="padding:10px 14px" class="hint">showing first 400 of ${list.length}</div>` : "");
+  $$("#clist button").forEach((b) => b.onclick = () => selectCase(b.dataset.id));
+  if (list.length && !list.some((c) => c.id === curCase)) selectCase(list[0].id);
+  else if (!list.length) $("#cdetail").innerHTML = '<p class="hint">no cases match those filters</p>';
+}
+$$("#f-dir,#f-lvl,#f-chal,#f-dom").forEach((s) => s.onchange = renderCases);
+$("#f-q").oninput = renderCases;
+
+async function selectCase(id) {
+  curCase = id;
+  $$("#clist button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.id === id)));
+  const c = byId.get(id);
+  if (!c) return;
+  $("#cdetail").innerHTML = `
+    <div class="kv">
+      <span class="pill">${c.from} → ${c.to}</span>
+      <span class="pill">level ${c.level}</span>
+      <span class="pill">${c.domain}</span>
+      <span class="pill">${c.difficulty}</span>
+      ${c.challenges.map((x) => `<span class="pill" style="border-color:var(--s4);color:var(--s4)">${x}</span>`).join("")}
+    </div>
+    <h3>Instructions</h3><pre>${esc(c.instructions)}</pre>
+    <h3>Input (${c.from})</h3><pre>${esc(c.input)}</pre>
+    <h3>Expected (${c.to})</h3><pre>${esc(pretty(c.expected))}</pre>
+    <h3>How models did <span style="text-transform:none;letter-spacing:0">(task / strict, plain · explained)</span></h3>
+    <div class="verdicts"><div class="hint" style="padding:10px 12px">loading…</div></div>`;
+  // Per-model detail is fetched lazily — 58 files rather than one 7 MB blob on first paint.
+  const models = await Promise.all(BOARD.map(async (m) => {
+    if (!MODELCACHE.has(m.slug)) {
+      MODELCACHE.set(m.slug, fetch(`data/models/${m.slug}.json`).then((r) => r.json()).catch(() => null));
+    }
+    const d = await MODELCACHE.get(m.slug);
+    const row = d?.rows?.find((r) => r.id === id);
+    return row ? { m, row } : null;
+  }));
+  const mark = (b) => b & 2 ? (b & 1 ? '<span class="vmark up">✓✓</span>' : '<span class="vmark up">✓</span>')
+                           : '<span class="vmark down">✗</span>';
+  const rowsHtml = models.filter(Boolean).map(({ m, row }) => `
+    <tr>
+      <td style="text-align:left"><button class="link" data-slug="${m.slug}">${esc(m.model)}</button></td>
+      <td>${mark(row.p)}</td><td>${mark(row.e)}</td>
+      <td style="text-align:left;max-width:340px;white-space:normal">
+        ${row.pr != null || row.er != null
+          ? `<details><summary class="hint" style="cursor:pointer">reply</summary>
+             <pre style="margin-top:6px;max-height:180px">${esc((row.pr ?? row.er ?? "").slice(0, 4000))}</pre></details>`
+          : '<span class="hint">—</span>'}
+      </td>
+    </tr>`).join("");
+  $("#cdetail .verdicts").innerHTML = `<table>
+    <thead><tr><th style="text-align:left">Model</th><th>plain</th><th>explained</th>
+    <th style="text-align:left">Reply</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  $$("#cdetail button.link").forEach((b) => b.onclick = () => openModel(b.dataset.slug));
+}
+
+// ── model drill-down: reuse the case explorer, scoped to failures ───────
+async function openModel(slug) {
+  const m = BOARD.find((x) => x.slug === slug);
+  if (!m) return;
+  $$('nav.tabs button').forEach((x) => x.setAttribute("aria-selected", String(x.dataset.v === "cases")));
+  $$(".view").forEach((v) => v.classList.toggle("on", v.id === "v-cases"));
+  if (!$("#clist").children.length) renderCases();
+  scrollTo({ top: 0, behavior: "smooth" });
+  // Surface the model's own numbers above the case list.
+  const head = `
+    <div class="kv" style="margin-bottom:10px">
+      <span class="pill" style="border-color:${m.local ? "var(--local)" : "var(--hosted)"}">${m.local ? "local" : "hosted"}</span>
+      <span class="pill">${esc(m.sizeLabel)}${m.active ? ` · ${esc(m.active)} active` : ""}</span>
+      <span class="pill">task ${m.plain.task} → ${m.ex.task}</span>
+      <span class="pill">strict ${m.plain.strict} → ${m.ex.strict}</span>
+      <span class="pill">enum-excluded ${m.plain.noEnum}</span>
+    </div>`;
+  $("#cdetail").innerHTML = `<h3 style="margin-top:0">${esc(m.name)}</h3>${head}
+    <p class="hint">Pick a case on the left to see this model's reply and how everyone else did.</p>`;
+}
+
+renderCases();
+
+// ── methodology tables ─────────────────────────────────────────────────
+$("#m-levels").innerHTML = "<thead><tr><th>Level</th><th>Shape</th><th>Meaning</th></tr></thead><tbody>" +
+  META.levels.map((l) => `<tr><td class="mono">L${l.n}</td><td>${esc(l.label)}</td><td>${esc(l.desc)}</td></tr>`).join("") +
+  "</tbody>";
+$("#m-chal").innerHTML = "<thead><tr><th>Constraint</th><th>What it asks</th></tr></thead><tbody>" +
+  META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(c.desc)}</td></tr>`).join("") +
+  "</tbody>";
+$("#m-dom").textContent = META.domains.join(" · ");
+</script>
+</body>
+</html>

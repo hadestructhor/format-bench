@@ -1,0 +1,14 @@
+# Secrets
+.env
+
+# Deps
+node_modules/
+
+# Raw working tree of runs (includes .ops/ logs, resume checkpoints, opt-in response logs).
+# The publishable copy of the results lives in results/ and docs/data/, which ARE committed.
+runs/
+
+# Superseded generated site — one 4.7 MB page + 324 MB of per-model pages. docs/ replaces it.
+# Leading slash matters: an unanchored "models/" also swallows docs/data/models/, which IS published.
+/models/
+/convert.html
