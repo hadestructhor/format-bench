@@ -1,8 +1,8 @@
 {
-  "generated": "2026-07-24T20:29:08.830Z",
+  "generated": "2026-07-25T04:49:16.151Z",
   "datasetSha": "fcf84c84ae574fcad2d41ebf162fc90ecddd0077710d04dfc33f0a7ed5c1827e",
   "cases": 2025,
-  "models": 58,
+  "models": 60,
   "directions": [
     "text>json",
     "text>yaml",
@@ -81,28 +81,5 @@
       "desc": "preserve special characters, escaped correctly for the target"
     }
   ],
-  "excluded": [
-    {
-      "provider": "nvidia",
-      "model": "thinkingmachines_inkling",
-      "mode": "ex",
-      "score": 8,
-      "otherScore": 71,
-      "shortRate": 0.11930926216640503,
-      "longRate": 0,
-      "otherLongRate": 0.7627118644067796,
-      "reason": "12% on short answers → 0% on long ones, while plain holds 76% on the same long cases"
-    },
-    {
-      "provider": "kilo",
-      "model": "nvidia_nemotron-3-ultra-550b-a55b_free",
-      "mode": "ex",
-      "score": 26,
-      "otherScore": 74,
-      "shortRate": 0.3453689167974882,
-      "longRate": 0,
-      "otherLongRate": 0.7450980392156863,
-      "reason": "35% on short answers → 0% on long ones, while plain holds 75% on the same long cases"
-    }
-  ]
+  "excluded": []
 }

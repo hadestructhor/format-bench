@@ -17,13 +17,14 @@ target format and nothing else. This benchmark measures exactly that, on **2,025
 
 ## Results
 
-58 models, best of both prompt modes. `task` = the correct value appears in the reply · `strict` = the whole
+60 models, best of both prompt modes. `task` = the correct value appears in the reply · `strict` = the whole
 reply is exactly that value · `Δ` = what the worked example changed.
 
 | Model | Provider | Size | task (plain) | task (ex) | strict (ex) | Δ |
 |---|---|---|---:|---:|---:|---:|
 | llama-4-maverick-17b-128e | nvidia | 400B | 62 | **79** | 79 | +17 |
-| nemotron-3-ultra | opencode | 550B | 74 | 73 | 73 | −1 |
+| nemotron-3-ultra-550b | opencode | 550B | 74 | 73 | 73 | −1 |
+| nemotron-3-ultra-550b | kilo | 550B | 74 | 73 | 73 | −1 |
 | deepseek-v4-flash | nvidia | 284B | 69 | 73 | 73 | +4 |
 | gpt-oss-20b | nvidia | 21B | 68 | 72 | 72 | +4 |
 | nemotron-3-nano-omni-30b-a3b | nvidia | 33B | 67 | 72 | 72 | +5 |
@@ -31,16 +32,20 @@ reply is exactly that value · `Δ` = what the worked example changed.
 | seed-oss-36b-instruct | nvidia | 36.2B | 62 | 70 | 70 | +8 |
 | glm-5.2 | tokenrouter | 744B | 70 | 70 | 70 | +0 |
 | mistral-medium-3.5-128b | nvidia | 128B | 59 | 69 | 69 | +10 |
-| nemotron-3-super-120b-a12b | kilo | 120.6B | 65 | 69 | 69 | +4 |
 
 **Nobody is close to solved.** The best model gets 79/100; no case in the set is solved by every model, and
 173 of 2,025 (8.5%) are solved by none. There is real headroom here.
 
-**A worked example is not reliably useful.** Across 58 models the mean Δ is −0.4 points: 28 models improved,
-23 got worse, 7 were unchanged. "Just show it an example" is folk wisdom this dataset does not support.
+**A worked example is close to a coin flip.** Across 60 models it helped 28, hurt 25 and changed nothing for
+7 — mean +1.3 points, carried almost entirely by a handful of large gains. "Just show it an example" is not
+the free accuracy it is usually assumed to be.
 
 **Size helps, but weakly.** A 21B model (gpt-oss-20b, 72) beats a 744B one (glm-5.2, 70). What separates
 models is instruction adherence under compound constraints, not parameter count.
+
+**The harness measures the model, not the provider.** `nemotron-3-ultra-550b` was run independently through
+two gateways — opencode Zen and Kilo — and scored **74 / 73 on both**. Same model, different infrastructure,
+identical numbers.
 
 ---
 
@@ -206,11 +211,12 @@ vocabulary in the instruction: a prompt-only change that leaves every expected a
 nested-only, so the level axis is confounded with direction difficulty. Read the level curve one direction at
 a time.
 
-**3. Two runs are withheld.** An earlier harness capped output at 2,048 tokens. Reasoning models spent that
-budget thinking and were cut off before writing the answer — which scored as a wrong answer rather than an
-infrastructure failure. Those runs are excluded from the board rather than shown;
-`bun scripts/detect-truncated.ts` is the detector. The harness now treats a truncated reply as a retryable
-error and never as a zero.
+**3. Two runs were withheld, then re-run.** An earlier harness capped output at 2,048 tokens. Reasoning
+models spent that budget thinking and were cut off before writing the answer — which scored as a wrong
+answer rather than an infrastructure failure. Both affected runs have been re-measured on the fixed harness:
+`inkling` explained went **8 → 62**, `nemotron-3-ultra-550b` on Kilo went **26 → 73** (which is where its
+opencode Zen twin already sat, an independent confirmation). `bun scripts/detect-truncated.ts` now reports
+no casualties. The harness treats a truncated reply as a retryable error and never as a zero.
 
 **4. Single sample by default.** `--repeat 1` and `temperature 0`. No confidence intervals are published.
 

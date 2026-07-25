@@ -420,10 +420,12 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
         inside one direction at a time.
       </div>
       <div class="note">
-        <b>Two runs are withheld.</b> An earlier harness capped output at 2,048 tokens. Reasoning models spent
-        that budget thinking and were cut off before writing the answer, which scored as a wrong answer rather
-        than an infrastructure failure. Those runs are excluded here rather than shown, and the harness now
-        treats a truncated reply as an error that is retried, never as a zero.
+        <b>Two runs were corrupted by an earlier harness, and have been re-measured.</b> That harness capped
+        output at 2,048 tokens; reasoning models spent the budget thinking and were cut off before writing the
+        answer, which scored as a wrong answer rather than an infrastructure failure. Both have been re-run on
+        the fixed harness — <code>inkling</code> explained went 8 → 62, and
+        <code>nemotron-3-ultra-550b</code> on Kilo went 26 → 73, landing exactly where the same model already
+        scored through a different provider. A truncated reply is now a retryable error, never a zero.
       </div>
 
       <h2>Reproducing this</h2>
@@ -794,7 +796,7 @@ async function selectCase(id) {
     <h3>Expected (${c.to})</h3><pre>${esc(pretty(c.expected))}</pre>
     <h3>How models did <span style="text-transform:none;letter-spacing:0">(task / strict, plain · explained)</span></h3>
     <div class="verdicts"><div class="hint" style="padding:10px 12px">loading…</div></div>`;
-  // Per-model detail is fetched lazily — 58 files rather than one 7 MB blob on first paint.
+  // Per-model detail is fetched lazily — one file per model rather than one 7 MB blob on first paint.
   const models = await Promise.all(BOARD.map(async (m) => {
     if (!MODELCACHE.has(m.slug)) {
       MODELCACHE.set(m.slug, fetch(`data/models/${m.slug}.json`).then((r) => r.json()).catch(() => null));
