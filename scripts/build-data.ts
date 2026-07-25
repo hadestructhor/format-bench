@@ -123,6 +123,25 @@ const idsNoChallenge = cases.filter((c) => c.challenges.length === 0).map((c) =>
 // with those cases removed — it isolates "follows instructions" from "guessed our vocabulary".
 const idsNoEnum = cases.filter((c) => !c.challenges.includes("enum")).map((c) => c.id);
 
+/**
+ * The one worked example the "explained" prompt prepends, per direction. run.ts picks the first easy train
+ * case of the same from→to (else the first of that direction), so this mirrors that choice exactly — the site
+ * can then reconstruct the prompt a model actually saw instead of approximating it.
+ */
+function demosByDirection(): Record<string, { input: string; output: string }> {
+  const f = join(ROOT, "benches", "convert", "train.jsonl");
+  if (!existsSync(f)) return {};
+  const train = readFileSync(f, "utf8").split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+  const out: Record<string, { input: string; output: string }> = {};
+  for (const d of DIRECTIONS) {
+    const [from, to] = d.split(">");
+    const pick = train.find((c: any) => c.from === from && c.to === to && c.difficulty === "easy")
+      ?? train.find((c: any) => c.from === from && c.to === to);
+    if (pick) out[d] = { input: pick.input, output: pick.output };
+  }
+  return out;
+}
+
 const casualties: Casualty[] = detect();
 const isExcluded = (prov: string, model: string, mode: string) =>
   casualties.some((c) => c.provider === prov && c.model === model && c.mode === mode);
@@ -199,6 +218,7 @@ function build() {
     cases: cases.length,
     models: board.length,
     directions: DIRECTIONS, domains: DOMAINS, levels: LEVELS, challenges: CHALLENGES,
+    demos: demosByDirection(),
     excluded: casualties,
   }, null, 2));
 

@@ -227,7 +227,25 @@ dialog#replydlg::backdrop { background: rgba(0, 0, 0, .48); backdrop-filter: blu
   position: sticky; top: 0;
 }
 .dlg-head h3 { font-size: 1rem; }
-.dlg-body { padding: 14px 16px 18px; overflow-y: auto; max-height: calc(84vh - 64px); }
+.dlg-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--plane);
+}
+.dlg-tabs { display: flex; gap: 2px; }
+.dlg-tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  padding: 6px 12px; font: 500 13px var(--sans); color: var(--muted);
+}
+.dlg-tabs button:hover { color: var(--ink); }
+.dlg-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--hosted); }
+.dlg-modes { display: flex; gap: 4px; align-items: center; }
+.dlg-body { padding: 14px 16px 18px; overflow-y: auto; max-height: calc(84vh - 108px); }
+/* Diff: colour carries the sign, but the +/- is printed too so it survives greyscale and CVD. */
+pre.diff { line-height: 1.5; }
+pre.diff span { display: block; padding: 0 4px; margin: 0 -4px; border-radius: 2px; }
+.dadd  { background: color-mix(in oklab, var(--good) 18%, transparent); color: var(--ink); }
+.ddel  { background: color-mix(in oklab, var(--bad) 18%, transparent); color: var(--ink); }
+.dsame { opacity: .58; }
 .dlg-body h4 {
   font: 600 .68rem var(--mono); letter-spacing: .12em; text-transform: uppercase;
   color: var(--muted); margin: 16px 0 6px;
@@ -540,6 +558,10 @@ bun bench.ts run --base-url http://localhost:8000/v1 --api-key sk-… \
     </div>
     <button class="btn" id="rd-close" aria-label="Close">✕</button>
   </div>
+  <div class="dlg-bar">
+    <div class="dlg-tabs" id="rd-tabs" role="tablist"></div>
+    <div class="dlg-modes" id="rd-modes"></div>
+  </div>
   <div class="dlg-body" id="rd-body"></div>
 </dialog>
 
@@ -607,26 +629,148 @@ const STR = {
 };
 const T = (k) => (STR[k] ?? {})[LANG] ?? k;
 
+// ── the dataset's own vocabulary ───────────────────────────────────────
+// meta.json and the cases ship these in English only, so the French lives here. Keys stay untranslated
+// wherever they're an identifier you'd grep the JSONL for — the label is translated, the key rides in `title`.
+const DOM_FR = {
+  recipe: "recette", product: "produit", basket: "panier", profile: "profil",
+  event: "événement", sensor: "capteur", media: "média", transaction: "transaction",
+};
+const DIF_FR = { easy: "facile", moderate: "modéré", hard: "difficile", extreme: "extrême" };
+const CHAL_FR_NAME = {
+  type: "type", unit: "unité", enum: "énumération", range: "intervalle",
+  count: "comptage", wrap: "enveloppe", escape: "échappement",
+};
+const LVL_FR = {
+  1: ["enregistrement plat", "un seul objet, tous les champs présents"],
+  2: ["quelques champs", "~3 éléments, toujours un seul enregistrement"],
+  3: ["liste d'étiquettes", "tableaux de valeurs scalaires (≈6)"],
+  4: ["liste d'enregistrements", "un tableau de sous-objets"],
+  5: ["groupes imbriqués", "des sous-objets qui s'imbriquent eux-mêmes (les directions CSV s'arrêtent à L3)"],
+};
+const CHAL_FR_DESC = {
+  type:   "nombres/booléens écrits en texte → produire un vrai nombre/booléen",
+  unit:   "retirer les suffixes d'unité (« 30min »→30, « 5 € »→5, « 500g »→500)",
+  enum:   "normaliser le texte de catégorie vers sa forme canonique (« Med »→« medium »)",
+  range:  "borner les nombres hors intervalle (note→0–5, score→0–100)",
+  count:  "ne garder que les N premiers éléments ; supprimer le surplus",
+  wrap:   "envelopper tout le résultat sous une unique clé de premier niveau",
+  escape: "préserver les caractères spéciaux, correctement échappés pour la cible",
+};
+const isFr = () => LANG === "fr";
+const tDom  = (d) => isFr() ? (DOM_FR[d] ?? d) : d;
+const tDif  = (d) => isFr() ? (DIF_FR[d] ?? d) : d;
+const tChal = (k) => isFr() ? (CHAL_FR_NAME[k] ?? k) : k;
+const tLvlLabel = (n, fallback) => isFr() ? (LVL_FR[n]?.[0] ?? fallback) : fallback;
+
 // ── reply dialog ───────────────────────────────────────────────────────
 const REPLIES = new Map();
 const dlg = $("#replydlg");
+let RD = null;                                   // { model, id, plain, ex } currently shown
+let RDMODE = "plain", RDTAB = "reply";
+
+/** The exact system prompt run.ts sent, rebuilt from the case (see systemFor in run.ts). */
+function promptFor(c, explained) {
+  const F = (c.from ?? "data").toUpperCase(), TT = (c.to ?? "json").toUpperCase();
+  let p = `You reformat data. The input below is ${F === "TEXT" ? "field notes (text)" : F}; produce ${TT}.\n`
+        + `${c.instructions ?? ""}\n`
+        + `Reply with ONLY the ${TT} value — nothing else: no prose, no explanation, no markdown code fences, no "Output:" label.`;
+  const d = explained ? (META.demos ?? {})[`${c.from}>${c.to}`] : null;
+  if (d) p += `\n\nWorked example — for this input:\n${d.input}\nthe correct reply is exactly:\n${d.output}`
+            + `\n\nNow do the same for the input below — reply with ONLY the ${TT}.`;
+  return p;
+}
+
+/** Line diff (LCS). Enough for these payloads, and it avoids pulling in a library. */
+function diffLines(a, b) {
+  const A = a.split("\n"), B = b.split("\n");
+  const m = A.length, n = B.length;
+  // Guard: the table is O(m·n); anything this size is a runaway reply, so fall back to a flat comparison.
+  if (m * n > 400000) return [{ t: "-", v: a }, { t: "+", v: b }];
+  const L = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < m && j < n) {
+    if (A[i] === B[j]) { out.push({ t: " ", v: A[i] }); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) { out.push({ t: "-", v: A[i] }); i++; }
+    else { out.push({ t: "+", v: B[j] }); j++; }
+  }
+  while (i < m) out.push({ t: "-", v: A[i++] });
+  while (j < n) out.push({ t: "+", v: B[j++] });
+  return out;
+}
+
+function renderReplyBody() {
+  const c = byId.get(RD.id);
+  const got = RDMODE === "ex" ? RD.ex : RD.plain;
+  const want = pretty(c?.expected);
+  if (RDTAB === "diff") {
+    // A correct JSON answer is usually emitted compact while `expected` is pretty-printed, so a raw line diff
+    // reports every line as changed on a case the model actually got right. Re-print both the same way when
+    // the reply parses — then the diff shows differences in the data, which is what it is for. Whether the
+    // reply was compact or fenced is the `strict` axis's job, not this one.
+    let a = String(got ?? ""), b = want, normalised = false;
+    if (c?.to === "json") {
+      try {
+        const parsed = JSON.parse(a.trim());
+        a = JSON.stringify(parsed, null, 2);
+        b = JSON.stringify(c.expected, null, 2);
+        normalised = true;
+      } catch { /* unparseable — diff it exactly as the model wrote it */ }
+    }
+    const rows = diffLines(a, b);
+    const same = rows.every((r) => r.t === " ");
+    $("#rd-body").innerHTML =
+      `<p class="hint" style="margin:0 0 9px">${isFr()
+        ? "− ce que le modèle a produit · + ce qui était attendu"
+        : "− what the model produced · + what was expected"}${normalised
+        ? (isFr() ? " · les deux reformatés à l'identique pour comparer les données"
+                  : " · both re-printed identically so the diff shows data, not formatting")
+        : ""}</p>` +
+      (same ? `<p class="hint">${isFr() ? "identique — aucune différence" : "identical — no differences"}</p>` : "") +
+      `<pre class="diff">${rows.map((r) =>
+        `<span class="d${r.t === "+" ? "add" : r.t === "-" ? "del" : "same"}">${esc(r.t + " " + r.v)}</span>`).join("\n")}</pre>`;
+  } else {
+    $("#rd-body").innerHTML =
+      `<h4>${isFr() ? "Prompt envoyé" : "Prompt sent"}</h4><pre>${esc(promptFor(c, RDMODE === "ex"))}\n\n---\n${esc(c?.input ?? "")}</pre>`
+      + `<h4>${isFr() ? "Résultat du modèle" : "Model result"}</h4><pre>${esc(String(got ?? ""))}</pre>`
+      + `<h4>${isFr() ? "Attendu" : "Expected"}</h4><pre>${esc(want)}</pre>`;
+  }
+}
+
+function renderReplyChrome() {
+  const both = RD.plain != null && RD.ex != null;
+  $("#rd-modes").innerHTML = both
+    ? ["plain", "ex"].map((m) =>
+        `<button class="btn tiny" data-mode="${m}" aria-pressed="${m === RDMODE}">${T(m === "ex" ? "explained" : "plain")}</button>`).join("")
+    : `<span class="hint">${T(RD.ex != null ? "explained" : "plain")}</span>`;
+  $("#rd-tabs").innerHTML = [["reply", isFr() ? "Réponse" : "Reply"], ["diff", "Diff"]]
+    .map(([k, l]) => `<button data-tab="${k}" aria-selected="${k === RDTAB}">${l}</button>`).join("");
+  $$("#rd-modes button").forEach((b) => b.onclick = () => { RDMODE = b.dataset.mode; renderReplyChrome(); renderReplyBody(); });
+  $$("#rd-tabs button").forEach((b) => b.onclick = () => { RDTAB = b.dataset.tab; renderReplyChrome(); renderReplyBody(); });
+}
+
 function showReply(slug) {
   const r = REPLIES.get(slug);
   if (!r) return;
+  RD = r;
+  RDMODE = r.plain != null ? "plain" : "ex";
+  RDTAB = "reply";
   $("#rd-title").textContent = r.model;
   $("#rd-meta").textContent = r.id;
-  $("#rd-body").innerHTML =
-    (r.plain != null ? `<h4>${T("plain")}</h4><pre>${esc(r.plain)}</pre>` : "") +
-    (r.ex != null ? `<h4>${T("explained")}</h4><pre>${esc(r.ex)}</pre>` : "") ||
-    `<p class="hint">${T("noReply")}</p>`;
+  renderReplyChrome();
+  renderReplyBody();
   dlg.showModal();
 }
 $("#rd-close").onclick = () => dlg.close();
-// Click the backdrop to dismiss — the dialog itself fills a known box, so a click outside it is a backdrop hit.
-dlg.addEventListener("click", (e) => {
-  const b = dlg.getBoundingClientRect();
-  if (e.clientX < b.left || e.clientX > b.right || e.clientY < b.top || e.clientY > b.bottom) dlg.close();
-});
+// Click the backdrop to dismiss. Test target identity, not pointer coordinates: a keyboard-activated click
+// (Enter/Space on a focused button) reports clientX/clientY of 0, which a coordinate test reads as "outside"
+// and closes the dialog under anyone navigating by keyboard. The backdrop is the only thing that targets
+// the dialog element itself, so this is both correct and accessible.
+dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
 
 function applyLang() {
   root.lang = LANG;
@@ -887,9 +1031,9 @@ function drawChal() {
   data.forEach((d, i) => {
     const y = 12 + i * rowH;
     const t = el("text", { x: lw - 8, y: y + 15, "text-anchor": "end", fill: cssv("--ink"), "font-size": 11 });
-    t.textContent = d.key; svg.append(t);
+    t.textContent = tChal(d.key); svg.append(t);
     const bar = el("rect", { x: lw, y: y + 4, width: Math.max(2, X(d.v) - lw), height: 18, rx: 4, fill: cssv("--s4") });
-    hoverable(bar, `<b>${d.key}</b><span class="r">${esc(d.desc)}<br>${d.v.toFixed(1)} vs ${base.toFixed(1)} baseline · ${(d.v - base).toFixed(1)}</span>`);
+    hoverable(bar, `<b>${esc(tChal(d.key))}</b><span class="r">${esc(d.desc)}<br>${d.v.toFixed(1)} vs ${base.toFixed(1)} baseline · ${(d.v - base).toFixed(1)}</span>`);
     svg.append(bar);
     const vt = el("text", { x: X(d.v) + 7, y: y + 17, fill: cssv("--ink-2") });
     vt.textContent = `${d.v.toFixed(0)}  (${(d.v - base).toFixed(0)})`; svg.append(vt);
@@ -932,9 +1076,18 @@ addEventListener("resize", () => { if (drawn) draw(); });
 // ── case explorer ──────────────────────────────────────────────────────
 const byId = new Map(CASES.map((c) => [c.id, c]));
 $("#f-dir").insertAdjacentHTML("beforeend", DIRS.map((d) => `<option value="${d}">${d.replace(">", " → ")}</option>`).join(""));
-$("#f-lvl").insertAdjacentHTML("beforeend", META.levels.map((l) => `<option value="${l.n}">L${l.n} — ${l.label}</option>`).join(""));
-$("#f-chal").insertAdjacentHTML("beforeend", META.challenges.map((c) => `<option value="${c.key}">${c.key}</option>`).join(""));
-$("#f-dom").insertAdjacentHTML("beforeend", META.domains.map((d) => `<option value="${d}">${d}</option>`).join(""));
+function fillCaseFilters() {
+  const keep = { lvl: $("#f-lvl").value, chal: $("#f-chal").value, dom: $("#f-dom").value };
+  const first = (sel) => sel.options[0].outerHTML;   // the translated "Any …" option
+  $("#f-lvl").innerHTML = first($("#f-lvl")) +
+    META.levels.map((l) => `<option value="${l.n}">L${l.n} — ${esc(tLvlLabel(l.n, l.label))}</option>`).join("");
+  $("#f-chal").innerHTML = first($("#f-chal")) +
+    META.challenges.map((c) => `<option value="${c.key}" title="${c.key}">${esc(tChal(c.key))}</option>`).join("");
+  $("#f-dom").innerHTML = first($("#f-dom")) +
+    META.domains.map((d) => `<option value="${d}">${esc(tDom(d))}</option>`).join("");
+  $("#f-lvl").value = keep.lvl; $("#f-chal").value = keep.chal; $("#f-dom").value = keep.dom;
+}
+fillCaseFilters();
 
 let curCase = null;
 function filteredCases() {
@@ -950,8 +1103,8 @@ function renderCases() {
   $("#ccount").textContent = `${list.length} ${list.length === 1 ? T("cases") : T("casesPl")}`;
   $("#clist").innerHTML = list.slice(0, 400).map((c) => `
     <button data-id="${c.id}" aria-current="${c.id === curCase}">
-      <div class="cid">${c.id} · L${c.level} · ${c.difficulty}</div>
-      <div class="cdir">${c.from} → ${c.to}<span style="color:var(--muted)"> · ${c.domain}</span></div>
+      <div class="cid">${c.id} · L${c.level} · ${esc(tDif(c.difficulty))}</div>
+      <div class="cdir">${c.from} → ${c.to}<span style="color:var(--muted)"> · ${esc(tDom(c.domain))}</span></div>
     </button>`).join("") + (list.length > 400 ? `<div style="padding:10px 14px" class="hint">${T("showingFirst")} ${list.length}</div>` : "");
   $$("#clist button").forEach((b) => b.onclick = () => selectCase(b.dataset.id));
   if (list.length && !list.some((c) => c.id === curCase)) selectCase(list[0].id);
@@ -969,9 +1122,9 @@ async function selectCase(id) {
     <div class="kv">
       <span class="pill">${c.from} → ${c.to}</span>
       <span class="pill">${T("level")} ${c.level}</span>
-      <span class="pill">${c.domain}</span>
-      <span class="pill">${c.difficulty}</span>
-      ${c.challenges.map((x) => `<span class="pill" style="border-color:var(--s4);color:var(--s4)">${x}</span>`).join("")}
+      <span class="pill">${esc(tDom(c.domain))}</span>
+      <span class="pill">${esc(tDif(c.difficulty))}</span>
+      ${c.challenges.map((x) => `<span class="pill" title="${x}" style="border-color:var(--s4);color:var(--s4)">${esc(tChal(x))}</span>`).join("")}
     </div>
     <h3>${T("instructions")}</h3><pre>${esc(c.instructions)}</pre>
     <h3>${T("input")} (${c.from})</h3><pre>${esc(c.input)}</pre>
@@ -1038,6 +1191,7 @@ renderCases();
 // Everything the language switch has to repaint: tables and charts are built in JS, so their strings
 // don't live on elements and applyLang() can't reach them.
 function rerenderAll() {
+  fillCaseFilters();
   renderBoard();
   renderCases();
   if (drawn) draw();
@@ -1045,23 +1199,6 @@ function rerenderAll() {
 }
 
 // ── methodology tables ─────────────────────────────────────────────────
-// The axis definitions ship in meta.json in English only, so the French labels live here alongside them.
-const LVL_FR = {
-  1: ["enregistrement plat", "un seul objet, tous les champs présents"],
-  2: ["quelques champs", "~3 éléments, toujours un seul enregistrement"],
-  3: ["liste d'étiquettes", "tableaux de valeurs scalaires (≈6)"],
-  4: ["liste d'enregistrements", "un tableau de sous-objets"],
-  5: ["groupes imbriqués", "des sous-objets qui s'imbriquent eux-mêmes (les directions CSV s'arrêtent à L3)"],
-};
-const CHAL_FR = {
-  type:   "nombres/booléens écrits en texte → produire un vrai nombre/booléen",
-  unit:   "retirer les suffixes d'unité (« 30min »→30, « 5 € »→5, « 500g »→500)",
-  enum:   "normaliser le texte de catégorie vers sa forme canonique (« Med »→« medium »)",
-  range:  "borner les nombres hors intervalle (note→0–5, score→0–100)",
-  count:  "ne garder que les N premiers éléments ; supprimer le surplus",
-  wrap:   "envelopper tout le résultat sous une unique clé de premier niveau",
-  escape: "préserver les caractères spéciaux, correctement échappés pour la cible",
-};
 function buildMethodTables() {
   const fr = LANG === "fr";
   $("#m-levels").innerHTML =
@@ -1072,9 +1209,9 @@ function buildMethodTables() {
     }).join("") + "</tbody>";
   $("#m-chal").innerHTML =
     `<thead><tr><th>${fr ? "Contrainte" : "Constraint"}</th><th>${fr ? "Ce qu'elle demande" : "What it asks"}</th></tr></thead><tbody>` +
-    META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(fr ? (CHAL_FR[c.key] ?? c.desc) : c.desc)}</td></tr>`).join("") +
+    META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(fr ? (CHAL_FR_DESC[c.key] ?? c.desc) : c.desc)}</td></tr>`).join("") +
     "</tbody>";
-  $("#m-dom").textContent = META.domains.join(" · ");
+  $("#m-dom").textContent = META.domains.map(tDom).join(" · ");
 }
 buildMethodTables();
 applyLang();

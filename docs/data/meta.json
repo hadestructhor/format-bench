@@ -1,5 +1,5 @@
 {
-  "generated": "2026-07-25T18:59:39.715Z",
+  "generated": "2026-07-25T19:24:02.104Z",
   "datasetSha": "fcf84c84ae574fcad2d41ebf162fc90ecddd0077710d04dfc33f0a7ed5c1827e",
   "cases": 2025,
   "models": 60,
@@ -81,5 +81,43 @@
       "desc": "preserve special characters, escaped correctly for the target"
     }
   ],
+  "demos": {
+    "text>json": {
+      "input": "Field notes on a product:\nsku: SKU-5313\ntitle: juno case\nprice: 19\nweight: 800\navailability: out_of_stock\nrating: 3\nfeatured: true",
+      "output": "{\"sku\":\"SKU-5313\",\"title\":\"juno case\",\"price\":19,\"weight\":800,\"availability\":\"out_of_stock\",\"rating\":3,\"featured\":true}"
+    },
+    "text>yaml": {
+      "input": "Field notes on a basket:\norderId: ORD-9380\ncustomer: Lena\ntotal: 140\nstatus: pending\ndiscountPercent: 0\nitemCount: 1\ngift: no message",
+      "output": "orderId: ORD-9380\ncustomer: Lena\ntotal: 140\nstatus: pending\ndiscountPercent: 0\nitemCount: 1\ngift: no message"
+    },
+    "text>csv": {
+      "input": "Field notes on 1 sensor records:\n- entry 1:\n    sensorId: S-581\n    temperature: 16\n    battery: 95\n    state: ok\n    readings: 12\n    online: false\n    humidity: 60",
+      "output": "sensorId,temperature,battery,state,readings,online,humidity\nS-581,16,95,ok,12,false,60"
+    },
+    "json>yaml": {
+      "input": "{\n  \"title\": \"ivory tide\",\n  \"type\": \"podcast\",\n  \"year\": 2024,\n  \"runtimeMin\": 48,\n  \"rating\": 5,\n  \"subtitled\": false,\n  \"tagline\": \"a story\"\n}",
+      "output": "title: ivory tide\ntype: podcast\nyear: 2024\nruntimeMin: 48\nrating: 5\nsubtitled: false\ntagline: a story"
+    },
+    "json>csv": {
+      "input": "[\n  {\n    \"title\": \"ember nights\",\n    \"type\": \"podcast\",\n    \"year\": 2021,\n    \"runtimeMin\": 96,\n    \"rating\": 3,\n    \"subtitled\": true,\n    \"tagline\": \"a story\"\n  }\n]",
+      "output": "title,type,year,runtimeMin,rating,subtitled,tagline\nember nights,podcast,2021,96,3,true,a story"
+    },
+    "yaml>json": {
+      "input": "orderId: ORD-7021\ncustomer: Sam\ntotal: 24\nstatus: pending\ndiscountPercent: 10\nitemCount: 2\ngift: no message",
+      "output": "{\"orderId\":\"ORD-7021\",\"customer\":\"Sam\",\"total\":24,\"status\":\"pending\",\"discountPercent\":10,\"itemCount\":2,\"gift\":\"no message\"}"
+    },
+    "yaml>csv": {
+      "input": "- name: Falafel Bowl\n  prepMinutes: 60\n  servings: 4\n  difficulty: hard\n  rating: 5\n  vegetarian: true\n  note: house favorite",
+      "output": "name,prepMinutes,servings,difficulty,rating,vegetarian,note\nFalafel Bowl,60,4,hard,5,true,house favorite"
+    },
+    "csv>json": {
+      "input": "username,name,age,role,profilePercent,verified,heightCm\nines23,Sam,21,member,90,false,160",
+      "output": "[{\"username\":\"ines23\",\"name\":\"Sam\",\"age\":21,\"role\":\"member\",\"profilePercent\":90,\"verified\":false,\"heightCm\":160}]"
+    },
+    "csv>yaml": {
+      "input": "sensorId,temperature,battery,state,readings,online,humidity\nS-515,28,40,ok,12,true,30",
+      "output": "- sensorId: S-515\n  temperature: 28\n  battery: 40\n  state: ok\n  readings: 12\n  online: true\n  humidity: 30"
+    }
+  },
   "excluded": []
 }
