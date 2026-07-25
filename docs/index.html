@@ -157,6 +157,8 @@ svg text { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
 .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); }
 .legend i { width: 9px; height: 9px; border-radius: 999px; display: inline-block; margin-right: 6px; vertical-align: middle; }
 .hint { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+/* A 64-char sha256 has no break opportunity and will push a phone viewport sideways on its own. */
+#m-sha { overflow-wrap: anywhere; }
 #tip {
   position: fixed; z-index: 100; pointer-events: none; opacity: 0; transition: opacity .1s;
   background: var(--raised); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px;
@@ -200,13 +202,83 @@ pre {
 .prose code { font-family: var(--mono); font-size: .88em; background: var(--plane);
               border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
 .prose table { margin: 12px 0; font-size: 13px; }
-.prose th, .prose td { text-align: left; }
+/* The leaderboard's cells are nowrap so columns stay aligned; prose tables are sentences and must wrap,
+   otherwise the definition columns push the page sideways on anything narrower than a laptop. */
+.prose th, .prose td { text-align: left; white-space: normal; }
 .prose th:first-child, .prose td:first-child { white-space: nowrap; }
+.prose pre { white-space: pre-wrap; word-break: break-word; overflow-x: auto; }
 .note { border-left: 3px solid var(--warn); background: var(--surface); padding: 12px 16px;
         border-radius: 0 8px 8px 0; margin: 16px 0; }
 .note b { color: var(--ink); }
 footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(--muted); font-size: 13px; background: var(--surface); }
 .loading { padding: 60px 0; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+
+/* ── reply dialog ───────────────────────────────────────────────────── */
+.btn.tiny { padding: 3px 9px; font-size: 12px; }
+dialog#replydlg {
+  width: min(760px, calc(100vw - 24px)); max-height: min(84vh, 900px);
+  padding: 0; border: 1px solid var(--rule); border-radius: 12px;
+  background: var(--surface); color: var(--ink); overflow: hidden;
+}
+dialog#replydlg::backdrop { background: rgba(0, 0, 0, .48); backdrop-filter: blur(2px); }
+.dlg-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface);
+  position: sticky; top: 0;
+}
+.dlg-head h3 { font-size: 1rem; }
+.dlg-body { padding: 14px 16px 18px; overflow-y: auto; max-height: calc(84vh - 64px); }
+.dlg-body h4 {
+  font: 600 .68rem var(--mono); letter-spacing: .12em; text-transform: uppercase;
+  color: var(--muted); margin: 16px 0 6px;
+}
+.dlg-body h4:first-child { margin-top: 0; }
+.dlg-body pre { max-height: none; }
+.verdicts td .btn.tiny { white-space: nowrap; }
+
+/* ── responsive ─────────────────────────────────────────────────────────
+   Three things break first on a narrow screen: the sticky table header offset
+   (the tab bar is taller once it wraps), the two-column case explorer, and the
+   heatmap, which has an intrinsic pixel width and must scroll rather than squash. */
+@media (max-width: 900px) {
+  .wrap { padding: 0 14px; }
+  .hero { padding: 30px 0 24px; }
+  .hero p { font-size: .96rem; }
+  .stats { gap: 18px 22px; margin-top: 20px; }
+  .stat b { font-size: 1.35rem; }
+  .card > h2, .card > .sub { padding-left: 14px; padding-right: 14px; }
+  .card > .body { padding: 14px; }
+  .detail { padding: 14px; }
+  th { top: 44px; }
+}
+@media (max-width: 620px) {
+  .hrow { flex-wrap: wrap; gap: 10px; }
+  .hlinks { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .btn { padding: 5px 10px; font-size: 12.5px; }
+  nav.tabs button { padding: 11px 10px; font-size: 13px; }
+  .stats { gap: 14px 18px; }
+  .stat { min-width: 72px; }
+  .stat b { font-size: 1.2rem; }
+  .stat span { font-size: .62rem; letter-spacing: .06em; }
+  .controls { gap: 6px; }
+  .controls input[type=search] { min-width: 0; flex: 1 1 100%; }
+  .controls select { flex: 1 1 auto; }
+  /* The board is wide by nature — let it scroll, but keep the model column readable. */
+  table { font-size: 12.5px; }
+  th, td { padding: 7px 8px; }
+  th:nth-child(2), td:nth-child(2) { min-width: 150px; }
+  .caselist { max-height: 240px; }
+  .prose h2 { font-size: 1.2rem; }
+  .prose table { font-size: 12px; }
+  /* Even the first column has to give way on a phone — "Constraint" plus a sentence won't fit otherwise. */
+  .prose th:first-child, .prose td:first-child { white-space: normal; }
+  .dlg-body, .dlg-head { padding-left: 13px; padding-right: 13px; }
+}
+/* Touch: hover tooltips never fire, so make the marks big enough to tap instead. */
+@media (hover: none) {
+  #tip { display: none; }
+  svg circle { r: 7; }
+}
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
 </style>
@@ -220,9 +292,9 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
   <div class="wrap hrow">
     <div class="brand"><span class="dot"></span>format-bench</div>
     <div class="hlinks">
-      <a class="btn" href="apps.html" title="Ten alternative front-ends over this same data">Front-ends</a>
       <a class="btn" href="https://github.com/hadestructhor/format-bench">GitHub</a>
-      <a class="btn" href="https://github.com/hadestructhor/format-bench/blob/main/benches/convert/test.jsonl">Dataset</a>
+      <a class="btn" href="https://github.com/hadestructhor/format-bench/blob/main/benches/convert/test.jsonl" data-en="Dataset" data-fr="Jeu de données">Dataset</a>
+      <button class="btn" id="lang" aria-label="Langue / Language">FR</button>
       <button class="btn" id="theme" title="Toggle theme" aria-label="Toggle colour theme">◐</button>
     </div>
   </div>
@@ -230,67 +302,70 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
 
 <div class="hero">
   <div class="wrap">
-    <div class="eyebrow">Data-format conversion benchmark</div>
-    <h1 style="margin-top:10px">Can a model rewrite your data without breaking it?</h1>
-    <p>
+    <div class="eyebrow" data-en="Data-format conversion benchmark" data-fr="Benchmark de conversion de formats">Data-format conversion benchmark</div>
+    <h1 style="margin-top:10px" data-en="Can a model rewrite your data without breaking it?" data-fr="Un modèle peut-il réécrire vos données sans les casser ?">Can a model rewrite your data without breaking it?</h1>
+    <p data-en="Converting between text, JSON, YAML and CSV looks trivial and isn't. A model has to keep every field, infer the types CSV threw away, strip units, clamp ranges, escape correctly — and emit the target format and nothing else. This benchmark measures exactly that, on &lt;span class=&quot;mono&quot;&gt;2,025&lt;/span&gt; frozen cases across nine directions, with every model run twice: once with plain instructions, once with a worked example."
+       data-fr="Convertir entre texte, JSON, YAML et CSV paraît trivial et ne l'est pas. Un modèle doit conserver chaque champ, déduire les types que le CSV a effacés, retirer les unités, borner les intervalles, échapper correctement — et produire le format cible et rien d'autre. Ce benchmark mesure exactement cela, sur &lt;span class=&quot;mono&quot;&gt;2 025&lt;/span&gt; cas figés répartis sur neuf directions, chaque modèle étant exécuté deux fois : une fois avec les consignes seules, une fois avec un exemple résolu.">
       Converting between text, JSON, YAML and CSV looks trivial and isn't. A model has to keep every field,
       infer the types CSV threw away, strip units, clamp ranges, escape correctly — and emit the target format
       and nothing else. This benchmark measures exactly that, on <span class="mono">2,025</span> frozen cases
       across nine directions, with every model run twice: once with plain instructions, once with a worked example.
     </p>
     <div class="stats">
-      <div class="stat"><b class="mono" id="s-models">—</b><span>models</span></div>
-      <div class="stat"><b class="mono">2,025</b><span>test cases</span></div>
-      <div class="stat"><b class="mono">9</b><span>directions</span></div>
-      <div class="stat"><b class="mono">7</b><span>constraints</span></div>
-      <div class="stat"><b class="mono" id="s-top">—</b><span>best task score</span></div>
+      <div class="stat"><b class="mono" id="s-models">—</b><span data-en="models" data-fr="modèles">models</span></div>
+      <div class="stat"><b class="mono">2,025</b><span data-en="test cases" data-fr="cas de test">test cases</span></div>
+      <div class="stat"><b class="mono">9</b><span data-en="directions" data-fr="directions">directions</span></div>
+      <div class="stat"><b class="mono">7</b><span data-en="constraints" data-fr="contraintes">constraints</span></div>
+      <div class="stat"><b class="mono" id="s-top">—</b><span data-en="best task score" data-fr="meilleur score task">best task score</span></div>
     </div>
   </div>
 </div>
 
 <nav class="tabs">
   <div class="wrap" role="tablist">
-    <button role="tab" aria-selected="true" data-v="board">Leaderboard</button>
-    <button role="tab" aria-selected="false" data-v="charts">Charts</button>
-    <button role="tab" aria-selected="false" data-v="cases">Explore cases</button>
-    <button role="tab" aria-selected="false" data-v="method">Methodology</button>
+    <button role="tab" aria-selected="true" data-v="board" data-en="Leaderboard" data-fr="Classement">Leaderboard</button>
+    <button role="tab" aria-selected="false" data-v="charts" data-en="Charts" data-fr="Graphiques">Charts</button>
+    <button role="tab" aria-selected="false" data-v="cases" data-en="Explore cases" data-fr="Explorer les cas">Explore cases</button>
+    <button role="tab" aria-selected="false" data-v="method" data-en="Methodology" data-fr="Méthodologie">Methodology</button>
   </div>
 </nav>
 
 <main class="wrap">
-  <div class="loading" id="loading">loading results…</div>
+  <div class="loading" id="loading" data-en="loading results…" data-fr="chargement des résultats…">loading results…</div>
 
   <!-- ── leaderboard ─────────────────────────────────────────────── -->
   <section class="view on" id="v-board" role="tabpanel" hidden>
     <div class="card">
-      <h2>Leaderboard</h2>
-      <p class="sub">
+      <h2 data-en="Leaderboard" data-fr="Classement">Leaderboard</h2>
+      <p class="sub"
+       data-en="&lt;b&gt;task&lt;/b&gt; — the correct value appears somewhere in the reply. &lt;b&gt;strict&lt;/b&gt; — the whole reply is exactly that value, no prose, no fences. &lt;b&gt;Δ&lt;/b&gt; — what the worked example changed. Click a model for its per-case detail; click a column to sort."
+       data-fr="&lt;b&gt;task&lt;/b&gt; — la bonne valeur apparaît quelque part dans la réponse. &lt;b&gt;strict&lt;/b&gt; — la réponse entière est exactement cette valeur, sans prose ni balises. &lt;b&gt;Δ&lt;/b&gt; — ce qu'a changé l'exemple résolu. Cliquez un modèle pour son détail par cas ; cliquez une colonne pour trier.">
         <b>task</b> — the correct value appears somewhere in the reply. <b>strict</b> — the whole reply is
         exactly that value, no prose, no fences. <b>Δ</b> — what the worked example changed. Click a model for its
         per-case detail; click a column to sort.
       </p>
       <div class="body">
         <div class="controls">
-          <input type="search" id="q" placeholder="Filter models…" aria-label="Filter models">
+          <input type="search" id="q" placeholder="Filter models…" aria-label="Filter models" data-ph-en="Filter models…" data-ph-fr="Filtrer les modèles…">
           <div class="seg" role="group" aria-label="Deployment filter">
-            <button class="btn" data-f="all" aria-pressed="true">All</button>
-            <button class="btn" data-f="hosted" aria-pressed="false">Hosted</button>
-            <button class="btn" data-f="local" aria-pressed="false">Local</button>
+            <button class="btn" data-f="all" aria-pressed="true" data-en="All" data-fr="Tous">All</button>
+            <button class="btn" data-f="hosted" aria-pressed="false" data-en="Hosted" data-fr="Hébergés">Hosted</button>
+            <button class="btn" data-f="local" aria-pressed="false" data-en="Local" data-fr="Locaux">Local</button>
           </div>
           <select id="dirsel" aria-label="Direction">
-            <option value="task">Overall</option>
+            <option value="task" data-en="Overall" data-fr="Global">Overall</option>
           </select>
           <span class="hint" id="count"></span>
         </div>
         <div class="scroll"><table id="board">
           <thead><tr>
             <th data-k="rank" style="cursor:default">#</th>
-            <th data-k="name">Model</th>
-            <th data-k="params">Size</th>
-            <th data-k="ptask">Task · plain</th>
-            <th data-k="pstrict">Strict · plain</th>
-            <th data-k="etask">Task · ex</th>
-            <th data-k="estrict">Strict · ex</th>
+            <th data-k="name" data-en="Model" data-fr="Modèle">Model</th>
+            <th data-k="params" data-en="Size" data-fr="Taille">Size</th>
+            <th data-k="ptask" data-en="Task · plain" data-fr="Task · simple">Task · plain</th>
+            <th data-k="pstrict" data-en="Strict · plain" data-fr="Strict · simple">Strict · plain</th>
+            <th data-k="etask" data-en="Task · ex" data-fr="Task · exemple">Task · ex</th>
+            <th data-k="estrict" data-en="Strict · ex" data-fr="Strict · exemple">Strict · ex</th>
             <th data-k="delta">Δ</th>
           </tr></thead>
           <tbody></tbody>
@@ -302,27 +377,29 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
   <!-- ── charts ──────────────────────────────────────────────────── -->
   <section class="view" id="v-charts" role="tabpanel" hidden>
     <div class="card">
-      <h2>Score against model size</h2>
-      <p class="sub">Best of the two prompt modes. Models with undisclosed parameter counts are omitted.</p>
+      <h2 data-en="Score against model size" data-fr="Score selon la taille du modèle">Score against model size</h2>
+      <p class="sub" data-en="Best of the two prompt modes. Models with undisclosed parameter counts are omitted." data-fr="Meilleur des deux modes de prompt. Les modèles dont le nombre de paramètres n'est pas divulgué sont exclus.">Best of the two prompt modes. Models with undisclosed parameter counts are omitted.</p>
       <div class="body">
         <div id="scatter"></div>
         <div class="legend">
-          <span><i style="background:var(--hosted)"></i>Hosted API</span>
-          <span><i style="background:var(--local)"></i>Local (llama.cpp)</span>
-          <span class="hint">↖ upper-left is better — smaller model, higher score</span>
+          <span><i style="background:var(--hosted)"></i><span data-en="Hosted API" data-fr="API hébergée">Hosted API</span></span>
+          <span><i style="background:var(--local)"></i><span data-en="Local (llama.cpp)" data-fr="Local (llama.cpp)">Local (llama.cpp)</span></span>
+          <span class="hint" data-en="↖ upper-left is better — smaller model, higher score" data-fr="↖ en haut à gauche c'est mieux — modèle plus petit, score plus haut">↖ upper-left is better — smaller model, higher score</span>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <h2>Where models struggle</h2>
-      <p class="sub">Task score per conversion direction, top 20 models. Darker is better.</p>
+      <h2 data-en="Where models struggle" data-fr="Où les modèles échouent">Where models struggle</h2>
+      <p class="sub" data-en="Task score per conversion direction, top 20 models. Darker is better." data-fr="Score task par direction de conversion, top 20 des modèles. Plus foncé est meilleur.">Task score per conversion direction, top 20 models. Darker is better.</p>
       <div class="body"><div class="scroll" id="heat"></div></div>
     </div>
 
     <div class="card">
-      <h2>What each constraint costs</h2>
-      <p class="sub">
+      <h2 data-en="What each constraint costs" data-fr="Ce que coûte chaque contrainte">What each constraint costs</h2>
+      <p class="sub"
+       data-en="Task score on cases carrying each constraint, averaged over every model, against the no-constraint baseline. Each one is an independent instruction the model has to honour while reformatting."
+       data-fr="Score task sur les cas portant chaque contrainte, moyenné sur tous les modèles, comparé à la référence sans contrainte. Chacune est une consigne indépendante que le modèle doit respecter en reformatant.">
         Task score on cases carrying each constraint, averaged over every model, against the
         no-constraint baseline. Each one is an independent instruction the model has to honour while reformatting.
       </p>
@@ -330,8 +407,10 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
     </div>
 
     <div class="card">
-      <h2>Does a worked example help?</h2>
-      <p class="sub">
+      <h2 data-en="Does a worked example help?" data-fr="Un exemple résolu aide-t-il ?">Does a worked example help?</h2>
+      <p class="sub"
+       data-en="Change in task score when one solved example of the same direction is prepended to the prompt. Blue = the example helped, red = it hurt."
+       data-fr="Variation du score task lorsqu'un exemple résolu de la même direction est ajouté au prompt. Bleu = l'exemple a aidé, rouge = il a nui.">
         Change in task score when one solved example of the same direction is prepended to the prompt.
         Blue = the example helped, red = it hurt.
       </p>
@@ -342,15 +421,15 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
   <!-- ── cases ───────────────────────────────────────────────────── -->
   <section class="view" id="v-cases" role="tabpanel" hidden>
     <div class="card">
-      <h2>Explore the test set</h2>
-      <p class="sub">Every one of the 2,025 cases, with the reference answer and how each model did on it.</p>
+      <h2 data-en="Explore the test set" data-fr="Explorer le jeu de test">Explore the test set</h2>
+      <p class="sub" data-en="Every one of the 2,025 cases, with the reference answer and how each model did on it." data-fr="Chacun des 2 025 cas, avec la réponse de référence et le résultat de chaque modèle.">Every one of the 2,025 cases, with the reference answer and how each model did on it.</p>
       <div class="body" style="padding-bottom:0">
         <div class="controls">
-          <select id="f-dir" aria-label="Direction"><option value="">Any direction</option></select>
-          <select id="f-lvl" aria-label="Level"><option value="">Any level</option></select>
-          <select id="f-chal" aria-label="Constraint"><option value="">Any constraint</option></select>
-          <select id="f-dom" aria-label="Domain"><option value="">Any domain</option></select>
-          <input type="search" id="f-q" placeholder="Case id…" aria-label="Case id">
+          <select id="f-dir" aria-label="Direction"><option value="" data-en="Any direction" data-fr="Toute direction">Any direction</option></select>
+          <select id="f-lvl" aria-label="Level"><option value="" data-en="Any level" data-fr="Tout niveau">Any level</option></select>
+          <select id="f-chal" aria-label="Constraint"><option value="" data-en="Any constraint" data-fr="Toute contrainte">Any constraint</option></select>
+          <select id="f-dom" aria-label="Domain"><option value="" data-en="Any domain" data-fr="Tout domaine">Any domain</option></select>
+          <input type="search" id="f-q" placeholder="Case id…" aria-label="Case id" data-ph-en="Case id…" data-ph-fr="Identifiant de cas…">
           <span class="hint" id="ccount"></span>
         </div>
       </div>
@@ -364,47 +443,52 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
   <!-- ── methodology ─────────────────────────────────────────────── -->
   <section class="view" id="v-method" role="tabpanel" hidden>
     <div class="card"><div class="body prose">
-      <h2 style="margin-top:0">What is measured</h2>
-      <p>
+      <h2 style="margin-top:0" data-en="What is measured" data-fr="Ce qui est mesuré">What is measured</h2>
+      <p data-en="Each case gives the model data in one format and asks for it in another, plus a set of transformation rules. The reply is graded on two axes:" data-fr="Chaque cas fournit au modèle des données dans un format et les demande dans un autre, avec un ensemble de règles de transformation. La réponse est notée sur deux axes :">
         Each case gives the model data in one format and asks for it in another, plus a set of transformation
         rules. The reply is graded on two axes:
       </p>
       <ul>
-        <li><b>task</b> — the correct value appears anywhere in the reply. Prose and code fences are tolerated.
+        <li data-en="&lt;b&gt;task&lt;/b&gt; — the correct value appears anywhere in the reply. Prose and code fences are tolerated. This asks: &lt;i&gt;did the conversion work?&lt;/i&gt;"
+            data-fr="&lt;b&gt;task&lt;/b&gt; — la bonne valeur apparaît n'importe où dans la réponse. La prose et les balises de code sont tolérées. La question : &lt;i&gt;la conversion a-t-elle fonctionné ?&lt;/i&gt;">
+          <b>task</b> — the correct value appears anywhere in the reply. Prose and code fences are tolerated.
           This asks: <i>did the conversion work?</i></li>
-        <li><b>strict</b> — the entire trimmed reply parses as the target format and equals the expected value.
+        <li data-en="&lt;b&gt;strict&lt;/b&gt; — the entire trimmed reply parses as the target format and equals the expected value. This asks: &lt;i&gt;can it follow &quot;reply with only the value&quot;?&lt;/i&gt;"
+            data-fr="&lt;b&gt;strict&lt;/b&gt; — la réponse entière, une fois élaguée, se parse dans le format cible et égale la valeur attendue. La question : &lt;i&gt;sait-il suivre « ne réponds qu'avec la valeur » ?&lt;/i&gt;">
+          <b>strict</b> — the entire trimmed reply parses as the target format and equals the expected value.
           This asks: <i>can it follow "reply with only the value"?</i></li>
       </ul>
-      <p>
+      <p data-en="Comparison is structural, not textual: object keys are order-insensitive, arrays are ordered, and types are strict — &lt;code&gt;&quot;22&quot;&lt;/code&gt; is not &lt;code&gt;22&lt;/code&gt;. A reply that says &lt;code&gt;{&quot;rating&quot;: &quot;5&quot;}&lt;/code&gt; when the answer is &lt;code&gt;{&quot;rating&quot;: 5}&lt;/code&gt; is wrong, because preserving types is the whole job."
+         data-fr="La comparaison est structurelle, pas textuelle : l'ordre des clés n'importe pas, les tableaux sont ordonnés, et les types sont stricts — &lt;code&gt;&quot;22&quot;&lt;/code&gt; n'est pas &lt;code&gt;22&lt;/code&gt;. Une réponse &lt;code&gt;{&quot;rating&quot;: &quot;5&quot;}&lt;/code&gt; alors que la réponse attendue est &lt;code&gt;{&quot;rating&quot;: 5}&lt;/code&gt; est fausse : préserver les types, c'est tout l'enjeu.">
         Comparison is structural, not textual: object keys are order-insensitive, arrays are ordered, and types
         are strict — <code>"22"</code> is not <code>22</code>. A reply that says <code>{"rating": "5"}</code> when
         the answer is <code>{"rating": 5}</code> is wrong, because preserving types is the whole job.
       </p>
 
-      <h2>The axes</h2>
-      <h3>Directions (9)</h3>
+      <h2 data-en="The axes" data-fr="Les axes">The axes</h2>
+      <h3 data-en="Directions (9)" data-fr="Directions (9)">Directions (9)</h3>
       <p>text→json · text→yaml · text→csv · json→yaml · json→csv · yaml→json · yaml→csv · csv→json · csv→yaml</p>
-      <p>
+      <p data-en="The CSV→* directions are the hardest, and that is not an accident: CSV erases types, so the model has to reconstruct which cells were numbers, which were booleans, and which were strings that merely look numeric." data-fr="Les directions CSV→* sont les plus dures, et ce n'est pas un hasard : le CSV efface les types, donc le modèle doit reconstruire quelles cellules étaient des nombres, lesquelles des booléens, et lesquelles des chaînes qui ressemblent seulement à des nombres.">
         The CSV→* directions are the hardest, and that is not an accident: CSV erases types, so the model has to
         reconstruct which cells were numbers, which were booleans, and which were strings that merely look numeric.
       </p>
-      <h3>Structural levels (5)</h3>
+      <h3 data-en="Structural levels (5)" data-fr="Niveaux structurels (5)">Structural levels (5)</h3>
       <table id="m-levels"></table>
-      <h3>Constraints (7)</h3>
-      <p>Each is an orthogonal instruction, combined in tiers from zero to all-applicable:</p>
+      <h3 data-en="Constraints (7)" data-fr="Contraintes (7)">Constraints (7)</h3>
+      <p data-en="Each is an orthogonal instruction, combined in tiers from zero to all-applicable:" data-fr="Chacune est une consigne orthogonale, combinée par paliers de zéro à toutes celles applicables :">Each is an orthogonal instruction, combined in tiers from zero to all-applicable:</p>
       <table id="m-chal"></table>
-      <h3>Domains (8)</h3>
+      <h3 data-en="Domains (8)" data-fr="Domaines (8)">Domains (8)</h3>
       <p id="m-dom"></p>
 
-      <h2>Prompt modes</h2>
-      <p>
+      <h2 data-en="Prompt modes" data-fr="Modes de prompt">Prompt modes</h2>
+      <p data-en="Every model is measured twice. &amp;lt;b&amp;gt;plain&amp;lt;/b&amp;gt; sends the instructions alone. &amp;lt;b&amp;gt;explained&amp;lt;/b&amp;gt; prepends one solved example of the same direction, drawn from a train split that shares no inputs with the test set. The difference between them is the Δ column." data-fr="Chaque modèle est mesuré deux fois. &amp;lt;b&amp;gt;simple&amp;lt;/b&amp;gt; envoie les consignes seules. &amp;lt;b&amp;gt;avec exemple&amp;lt;/b&amp;gt; ajoute un exemple résolu de la même direction, tiré d'un split d'entraînement qui ne partage aucune entrée avec le jeu de test. L'écart entre les deux est la colonne Δ.">
         Every model is measured twice. <b>plain</b> sends the instructions alone. <b>explained</b> prepends one
         solved example of the same direction, drawn from a train split that shares no inputs with the test set.
         The difference between them is the Δ column.
       </p>
 
-      <h2>Limitations</h2>
-      <div class="note">
+      <h2 data-en="Limitations" data-fr="Limites">Limitations</h2>
+      <div class="note" data-en="&lt;b&gt;The &lt;code&gt;enum&lt;/code&gt; constraint is partly unguessable in v1.0.&lt;/b&gt; It asks the model to normalise category text to a canonical form, giving examples like &lt;code&gt;IN STOCK → in_stock&lt;/code&gt;. But some expected values cannot be derived from the instruction: &lt;code&gt;Pre-order → preorder&lt;/code&gt; drops the underscore that the given example implies, and &lt;code&gt;clear → cleared&lt;/code&gt; is a different word, not a case normalisation. On those cases the benchmark measures vocabulary guessing rather than instruction-following. The dataset is frozen for v1.0 so that all published scores stay comparable; the leaderboard therefore also carries a &lt;b&gt;task score with enum cases removed&lt;/b&gt;. v1.1 will state the allowed vocabulary in the instruction — a prompt-only change that leaves every expected answer identical." data-fr="&lt;b&gt;La contrainte &lt;code&gt;enum&lt;/code&gt; est en partie indevinable en v1.0.&lt;/b&gt; Elle demande de normaliser un texte de catégorie vers une forme canonique, avec des exemples comme &lt;code&gt;IN STOCK → in_stock&lt;/code&gt;. Mais certaines valeurs attendues ne se déduisent pas de la consigne : &lt;code&gt;Pre-order → preorder&lt;/code&gt; perd le tiret bas que l'exemple laissait supposer, et &lt;code&gt;clear → cleared&lt;/code&gt; est un autre mot, pas une normalisation de casse. Sur ces cas, le benchmark mesure la devinette de vocabulaire plutôt que le suivi de consigne. Le jeu de données est figé en v1.0 pour que tous les scores publiés restent comparables ; le classement porte donc aussi un &lt;b&gt;score task hors cas enum&lt;/b&gt;. La v1.1 énoncera le vocabulaire autorisé dans la consigne — un changement de prompt seul, qui laisse chaque réponse attendue identique.">
         <b>The <code>enum</code> constraint is partly unguessable in v1.0.</b> It asks the model to normalise
         category text to a canonical form, giving examples like <code>IN STOCK → in_stock</code>. But some
         expected values cannot be derived from the instruction: <code>Pre-order → preorder</code> drops the
@@ -414,12 +498,12 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
         the leaderboard therefore also carries a <b>task score with enum cases removed</b>. v1.1 will state the
         allowed vocabulary in the instruction — a prompt-only change that leaves every expected answer identical.
       </div>
-      <div class="note">
+      <div class="note" data-en="&lt;b&gt;Levels are comparable within a direction, not across.&lt;/b&gt; Levels 1–3 include the CSV directions while 4–5 are nested-only, so the level axis is confounded with direction difficulty. Read the level curve inside one direction at a time." data-fr="&lt;b&gt;Les niveaux sont comparables au sein d'une direction, pas entre elles.&lt;/b&gt; Les niveaux 1 à 3 incluent les directions CSV alors que 4 et 5 sont uniquement imbriqués : l'axe des niveaux est donc confondu avec la difficulté de direction. Lisez la courbe des niveaux une direction à la fois.">
         <b>Levels are comparable within a direction, not across.</b> Levels 1–3 include the CSV directions while
         4–5 are nested-only, so the level axis is confounded with direction difficulty. Read the level curve
         inside one direction at a time.
       </div>
-      <div class="note">
+      <div class="note" data-en="&lt;b&gt;Two runs were corrupted by an earlier harness, and have been re-measured.&lt;/b&gt; That harness capped output at 2,048 tokens; reasoning models spent the budget thinking and were cut off before writing the answer, which scored as a wrong answer rather than an infrastructure failure. Both have been re-run on the fixed harness — &lt;code&gt;inkling&lt;/code&gt; explained went 8 → 62, and &lt;code&gt;nemotron-3-ultra-550b&lt;/code&gt; on Kilo went 26 → 73, landing exactly where the same model already scored through a different provider. A truncated reply is now a retryable error, never a zero." data-fr="&lt;b&gt;Deux exécutions ont été corrompues par une version antérieure du harness, puis re-mesurées.&lt;/b&gt; Ce harness plafonnait la sortie à 2 048 tokens ; les modèles de raisonnement dépensaient ce budget à réfléchir et étaient coupés avant d'écrire la réponse, ce qui comptait comme une mauvaise réponse plutôt qu'une panne d'infrastructure. Les deux ont été relancées sur le harness corrigé — &lt;code&gt;inkling&lt;/code&gt; avec exemple est passé de 8 à 62, et &lt;code&gt;nemotron-3-ultra-550b&lt;/code&gt; sur Kilo de 26 à 73, atterrissant exactement là où le même modèle se situait déjà via un autre fournisseur. Une réponse tronquée est désormais une erreur réessayable, jamais un zéro.">
         <b>Two runs were corrupted by an earlier harness, and have been re-measured.</b> That harness capped
         output at 2,048 tokens; reasoning models spent the budget thinking and were cut off before writing the
         answer, which scored as a wrong answer rather than an infrastructure failure. Both have been re-run on
@@ -428,8 +512,8 @@ footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(-
         scored through a different provider. A truncated reply is now a retryable error, never a zero.
       </div>
 
-      <h2>Reproducing this</h2>
-      <p>The harness talks to any OpenAI-compatible endpoint:</p>
+      <h2 data-en="Reproducing this" data-fr="Reproduire ces résultats">Reproducing this</h2>
+      <p data-en="The harness talks to any OpenAI-compatible endpoint:" data-fr="Le harness fonctionne avec n'importe quel endpoint compatible OpenAI :">The harness talks to any OpenAI-compatible endpoint:</p>
       <pre>git clone https://github.com/hadestructhor/format-bench
 cd format-bench &amp;&amp; bun install
 
@@ -448,9 +532,21 @@ bun bench.ts run --base-url http://localhost:8000/v1 --api-key sk-… \
 
 <div id="tip" role="status" aria-live="polite"></div>
 
+<dialog id="replydlg" aria-labelledby="rd-title">
+  <div class="dlg-head">
+    <div>
+      <h3 id="rd-title"></h3>
+      <div class="hint mono" id="rd-meta"></div>
+    </div>
+    <button class="btn" id="rd-close" aria-label="Close">✕</button>
+  </div>
+  <div class="dlg-body" id="rd-body"></div>
+</dialog>
+
 <footer><div class="wrap">
-  format-bench · Apache-2.0 · <a href="https://github.com/hadestructhor/format-bench">source</a> ·
-  built by Angelo Al Yacoub · <span id="f-gen" class="mono"></span>
+  <span data-en="format-bench · Apache-2.0 · built by Angelo Al Yacoub" data-fr="format-bench · Apache-2.0 · réalisé par Angelo Al Yacoub">format-bench · Apache-2.0 · built by Angelo Al Yacoub</span> ·
+  <a href="https://github.com/hadestructhor/format-bench" data-en="source" data-fr="code source">source</a> ·
+  <span id="f-gen" class="mono"></span>
 </div></footer>
 
 <script type="module">
@@ -466,6 +562,92 @@ $("#theme").onclick = () => {
   const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   root.setAttribute("data-theme", dark ? "light" : "dark");
   draw();  // charts bake theme colours into attributes, so repaint on switch
+};
+
+// ── language ───────────────────────────────────────────────────────────
+// Static copy is carried on the elements themselves (data-en / data-fr) so a translation sits next to the
+// text it replaces. Strings built in JS come from T() below.
+let LANG = localStorage.getItem("fb-lang")
+  || ((navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en");
+
+const STR = {
+  models:      { en: "model",              fr: "modèle" },
+  modelsPl:    { en: "models",             fr: "modèles" },
+  cases:       { en: "case",               fr: "cas" },
+  casesPl:     { en: "cases",              fr: "cas" },
+  local:       { en: "local",              fr: "local" },
+  hosted:      { en: "hosted",             fr: "hébergé" },
+  reply:       { en: "reply",              fr: "réponse" },
+  viewReply:   { en: "View reply",         fr: "Voir la réponse" },
+  noReply:     { en: "not recorded",       fr: "non enregistrée" },
+  plain:       { en: "plain",              fr: "simple" },
+  explained:   { en: "explained",          fr: "avec exemple" },
+  instructions:{ en: "Instructions",       fr: "Consignes" },
+  input:       { en: "Input",              fr: "Entrée" },
+  expected:    { en: "Expected",           fr: "Attendu" },
+  howModels:   { en: "How models did",     fr: "Résultats des modèles" },
+  taskStrict:  { en: "(task / strict, plain · explained)", fr: "(task / strict, simple · avec exemple)" },
+  loading:     { en: "loading…",           fr: "chargement…" },
+  noMatch:     { en: "no cases match those filters", fr: "aucun cas ne correspond à ces filtres" },
+  showingFirst:{ en: "showing first 400 of", fr: "400 premiers sur" },
+  level:       { en: "level",              fr: "niveau" },
+  size:        { en: "size",               fr: "taille" },
+  enumEx:      { en: "enum-excluded",      fr: "hors enum" },
+  pickCase:    { en: "Pick a case on the left to see this model's reply and how everyone else did.",
+                 fr: "Choisissez un cas à gauche pour voir la réponse de ce modèle et celle des autres." },
+  helped:      { en: "models helped",      fr: "modèles aidés" },
+  hurt:        { en: "hurt",               fr: "desservis" },
+  unchanged:   { en: "unchanged",          fr: "inchangés" },
+  noConstraint:{ en: "no constraint",      fr: "sans contrainte" },
+  taskScore:   { en: "task score",         fr: "score task" },
+  paramsLog:   { en: "parameters (log)",   fr: "paramètres (log)" },
+  baseline:    { en: "baseline",           fr: "référence" },
+  close:       { en: "Close",              fr: "Fermer" },
+  model:       { en: "Model",              fr: "Modèle" },
+};
+const T = (k) => (STR[k] ?? {})[LANG] ?? k;
+
+// ── reply dialog ───────────────────────────────────────────────────────
+const REPLIES = new Map();
+const dlg = $("#replydlg");
+function showReply(slug) {
+  const r = REPLIES.get(slug);
+  if (!r) return;
+  $("#rd-title").textContent = r.model;
+  $("#rd-meta").textContent = r.id;
+  $("#rd-body").innerHTML =
+    (r.plain != null ? `<h4>${T("plain")}</h4><pre>${esc(r.plain)}</pre>` : "") +
+    (r.ex != null ? `<h4>${T("explained")}</h4><pre>${esc(r.ex)}</pre>` : "") ||
+    `<p class="hint">${T("noReply")}</p>`;
+  dlg.showModal();
+}
+$("#rd-close").onclick = () => dlg.close();
+// Click the backdrop to dismiss — the dialog itself fills a known box, so a click outside it is a backdrop hit.
+dlg.addEventListener("click", (e) => {
+  const b = dlg.getBoundingClientRect();
+  if (e.clientX < b.left || e.clientX > b.right || e.clientY < b.top || e.clientY > b.bottom) dlg.close();
+});
+
+function applyLang() {
+  root.lang = LANG;
+  $("#lang").textContent = LANG === "fr" ? "EN" : "FR";
+  for (const el of $$("[data-en]")) {
+    const v = el.getAttribute(`data-${LANG}`);
+    if (v != null) el.innerHTML = v;
+  }
+  for (const el of $$("[data-ph-en]")) {
+    const v = el.getAttribute(`data-ph-${LANG}`);
+    if (v != null) el.placeholder = v;
+  }
+  document.title = LANG === "fr"
+    ? "format-bench — les modèles savent-ils convertir des données sans les casser ?"
+    : "format-bench — can models convert data without breaking it?";
+}
+$("#lang").onclick = () => {
+  LANG = LANG === "fr" ? "en" : "fr";
+  localStorage.setItem("fb-lang", LANG);
+  applyLang();
+  if (typeof rerenderAll === "function") rerenderAll();
 };
 
 // ── data ───────────────────────────────────────────────────────────────
@@ -550,13 +732,13 @@ const n = (v) => v == null ? '<span style="color:var(--muted)">—</span>' : v;
 
 function renderBoard() {
   const r = rows();
-  $("#count").textContent = `${r.length} model${r.length === 1 ? "" : "s"}`;
+  $("#count").textContent = `${r.length} ${r.length === 1 ? T("models") : T("modelsPl")}`;
   $("#board tbody").innerHTML = r.map((m, i) => `
     <tr>
       <td class="num" style="color:var(--muted)">${i + 1}</td>
       <td><div class="mname">
         <span class="tag" style="background:${m.local ? "var(--local)" : "var(--hosted)"}"
-              title="${m.local ? "local" : "hosted"}"></span>
+              title="${m.local ? T("local") : T("hosted")}"></span>
         <span><button class="link" data-slug="${m.slug}">${esc(m.model)}</button>
         <span class="sm">${esc(m.provider)}</span></span>
       </div></td>
@@ -623,8 +805,8 @@ function drawScatter() {
   svg.append(el("line", { x1: P.l, x2: P.l, y1: P.t, y2: H - P.b, class: "axis" }));
   // Rotated along the axis so it can't collide with the topmost tick label.
   const yl = el("text", { transform: `translate(11,${(H - P.b + P.t) / 2}) rotate(-90)`, "text-anchor": "middle" });
-  yl.textContent = "task score"; svg.append(yl);
-  const xl = el("text", { x: W - P.r, y: H - 6, "text-anchor": "end" }); xl.textContent = "parameters (log)"; svg.append(xl);
+  yl.textContent = T("taskScore"); svg.append(yl);
+  const xl = el("text", { x: W - P.r, y: H - 6, "text-anchor": "end" }); xl.textContent = T("paramsLog"); svg.append(xl);
 
   for (const p of pts) {
     const best = Math.max(p.plain.task, p.ex.task);
@@ -701,7 +883,7 @@ function drawChal() {
   svg.append(el("line", { x1: X(base), x2: X(base), y1: 8, y2: H - 22, stroke: cssv("--rule"),
                           "stroke-width": 1.5, "stroke-dasharray": "4 3" }));
   const bl = el("text", { x: X(base), y: H - 8, "text-anchor": "middle", fill: cssv("--ink-2") });
-  bl.textContent = `no constraint · ${base.toFixed(0)}`; svg.append(bl);
+  bl.textContent = `${T("noConstraint")} · ${base.toFixed(0)}`; svg.append(bl);
   data.forEach((d, i) => {
     const y = 12 + i * rowH;
     const t = el("text", { x: lw - 8, y: y + 15, "text-anchor": "end", fill: cssv("--ink"), "font-size": 11 });
@@ -734,13 +916,13 @@ function drawDelta() {
     r.onclick = () => openModel(d.slug);
     svg.append(r);
   });
-  const up = el("text", { x: 4, y: 14, fill: cssv("--ink-2") }); up.textContent = "helped"; svg.append(up);
-  const dn = el("text", { x: 4, y: H - 6, fill: cssv("--ink-2") }); dn.textContent = "hurt"; svg.append(dn);
+  const up = el("text", { x: 4, y: 14, fill: cssv("--ink-2") }); up.textContent = LANG === "fr" ? "aidé" : "helped"; svg.append(up);
+  const dn = el("text", { x: 4, y: H - 6, fill: cssv("--ink-2") }); dn.textContent = LANG === "fr" ? "nui" : "hurt"; svg.append(dn);
   const nHelp = data.filter((d) => d.delta > 0).length;
   host.append(svg);
   host.insertAdjacentHTML("beforeend",
-    `<p class="hint" style="margin-top:8px">${nHelp} models helped · ${data.length - nHelp} hurt · ` +
-    `${BOARD.length - data.length} unchanged</p>`);
+    `<p class="hint" style="margin-top:8px">${nHelp} ${T("helped")} · ${data.length - nHelp} ${T("hurt")} · ` +
+    `${BOARD.length - data.length} ${T("unchanged")}</p>`);
 }
 
 let drawn = false;
@@ -765,15 +947,15 @@ function filteredCases() {
 }
 function renderCases() {
   const list = filteredCases();
-  $("#ccount").textContent = `${list.length} case${list.length === 1 ? "" : "s"}`;
+  $("#ccount").textContent = `${list.length} ${list.length === 1 ? T("cases") : T("casesPl")}`;
   $("#clist").innerHTML = list.slice(0, 400).map((c) => `
     <button data-id="${c.id}" aria-current="${c.id === curCase}">
       <div class="cid">${c.id} · L${c.level} · ${c.difficulty}</div>
       <div class="cdir">${c.from} → ${c.to}<span style="color:var(--muted)"> · ${c.domain}</span></div>
-    </button>`).join("") + (list.length > 400 ? `<div style="padding:10px 14px" class="hint">showing first 400 of ${list.length}</div>` : "");
+    </button>`).join("") + (list.length > 400 ? `<div style="padding:10px 14px" class="hint">${T("showingFirst")} ${list.length}</div>` : "");
   $$("#clist button").forEach((b) => b.onclick = () => selectCase(b.dataset.id));
   if (list.length && !list.some((c) => c.id === curCase)) selectCase(list[0].id);
-  else if (!list.length) $("#cdetail").innerHTML = '<p class="hint">no cases match those filters</p>';
+  else if (!list.length) $("#cdetail").innerHTML = `<p class="hint">${T("noMatch")}</p>`;
 }
 $$("#f-dir,#f-lvl,#f-chal,#f-dom").forEach((s) => s.onchange = renderCases);
 $("#f-q").oninput = renderCases;
@@ -786,16 +968,16 @@ async function selectCase(id) {
   $("#cdetail").innerHTML = `
     <div class="kv">
       <span class="pill">${c.from} → ${c.to}</span>
-      <span class="pill">level ${c.level}</span>
+      <span class="pill">${T("level")} ${c.level}</span>
       <span class="pill">${c.domain}</span>
       <span class="pill">${c.difficulty}</span>
       ${c.challenges.map((x) => `<span class="pill" style="border-color:var(--s4);color:var(--s4)">${x}</span>`).join("")}
     </div>
-    <h3>Instructions</h3><pre>${esc(c.instructions)}</pre>
-    <h3>Input (${c.from})</h3><pre>${esc(c.input)}</pre>
-    <h3>Expected (${c.to})</h3><pre>${esc(pretty(c.expected))}</pre>
-    <h3>How models did <span style="text-transform:none;letter-spacing:0">(task / strict, plain · explained)</span></h3>
-    <div class="verdicts"><div class="hint" style="padding:10px 12px">loading…</div></div>`;
+    <h3>${T("instructions")}</h3><pre>${esc(c.instructions)}</pre>
+    <h3>${T("input")} (${c.from})</h3><pre>${esc(c.input)}</pre>
+    <h3>${T("expected")} (${c.to})</h3><pre>${esc(pretty(c.expected))}</pre>
+    <h3>${T("howModels")} <span style="text-transform:none;letter-spacing:0">${T("taskStrict")}</span></h3>
+    <div class="verdicts"><div class="hint" style="padding:10px 12px">${T("loading")}</div></div>`;
   // Per-model detail is fetched lazily — one file per model rather than one 7 MB blob on first paint.
   const models = await Promise.all(BOARD.map(async (m) => {
     if (!MODELCACHE.has(m.slug)) {
@@ -807,21 +989,27 @@ async function selectCase(id) {
   }));
   const mark = (b) => b & 2 ? (b & 1 ? '<span class="vmark up">✓✓</span>' : '<span class="vmark up">✓</span>')
                            : '<span class="vmark down">✗</span>';
-  const rowsHtml = models.filter(Boolean).map(({ m, row }) => `
+  // Replies open in a dialog rather than an inline accordion: they are long, monospaced and often wider than
+  // the table cell, so expanding one in place blew out the row on every screen and was unusable on a phone.
+  REPLIES.clear();
+  const rowsHtml = models.filter(Boolean).map(({ m, row }) => {
+    const has = row.pr != null || row.er != null;
+    if (has) REPLIES.set(m.slug, { model: m.model, id, plain: row.pr ?? null, ex: row.er ?? null });
+    return `
     <tr>
       <td style="text-align:left"><button class="link" data-slug="${m.slug}">${esc(m.model)}</button></td>
       <td>${mark(row.p)}</td><td>${mark(row.e)}</td>
-      <td style="text-align:left;max-width:340px;white-space:normal">
-        ${row.pr != null || row.er != null
-          ? `<details><summary class="hint" style="cursor:pointer">reply</summary>
-             <pre style="margin-top:6px;max-height:180px">${esc((row.pr ?? row.er ?? "").slice(0, 4000))}</pre></details>`
-          : '<span class="hint">—</span>'}
+      <td style="text-align:left">
+        ${has ? `<button class="btn tiny" data-reply="${m.slug}">${T("viewReply")}</button>`
+              : `<span class="hint">${T("noReply")}</span>`}
       </td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   $("#cdetail .verdicts").innerHTML = `<table>
-    <thead><tr><th style="text-align:left">Model</th><th>plain</th><th>explained</th>
-    <th style="text-align:left">Reply</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
+    <thead><tr><th style="text-align:left">${T("model")}</th><th>${T("plain")}</th><th>${T("explained")}</th>
+    <th style="text-align:left">${T("reply")}</th></tr></thead><tbody>${rowsHtml}</tbody></table>`;
   $$("#cdetail button.link").forEach((b) => b.onclick = () => openModel(b.dataset.slug));
+  $$("#cdetail button[data-reply]").forEach((b) => b.onclick = () => showReply(b.dataset.reply));
 }
 
 // ── model drill-down: reuse the case explorer, scoped to failures ───────
@@ -835,26 +1023,61 @@ async function openModel(slug) {
   // Surface the model's own numbers above the case list.
   const head = `
     <div class="kv" style="margin-bottom:10px">
-      <span class="pill" style="border-color:${m.local ? "var(--local)" : "var(--hosted)"}">${m.local ? "local" : "hosted"}</span>
+      <span class="pill" style="border-color:${m.local ? "var(--local)" : "var(--hosted)"}">${m.local ? T("local") : T("hosted")}</span>
       <span class="pill">${esc(m.sizeLabel)}${m.active ? ` · ${esc(m.active)} active` : ""}</span>
       <span class="pill">task ${m.plain.task} → ${m.ex.task}</span>
       <span class="pill">strict ${m.plain.strict} → ${m.ex.strict}</span>
-      <span class="pill">enum-excluded ${m.plain.noEnum}</span>
+      <span class="pill">${T("enumEx")} ${m.plain.noEnum}</span>
     </div>`;
   $("#cdetail").innerHTML = `<h3 style="margin-top:0">${esc(m.name)}</h3>${head}
-    <p class="hint">Pick a case on the left to see this model's reply and how everyone else did.</p>`;
+    <p class="hint">${T("pickCase")}</p>`;
 }
 
 renderCases();
 
+// Everything the language switch has to repaint: tables and charts are built in JS, so their strings
+// don't live on elements and applyLang() can't reach them.
+function rerenderAll() {
+  renderBoard();
+  renderCases();
+  if (drawn) draw();
+  buildMethodTables();
+}
+
 // ── methodology tables ─────────────────────────────────────────────────
-$("#m-levels").innerHTML = "<thead><tr><th>Level</th><th>Shape</th><th>Meaning</th></tr></thead><tbody>" +
-  META.levels.map((l) => `<tr><td class="mono">L${l.n}</td><td>${esc(l.label)}</td><td>${esc(l.desc)}</td></tr>`).join("") +
-  "</tbody>";
-$("#m-chal").innerHTML = "<thead><tr><th>Constraint</th><th>What it asks</th></tr></thead><tbody>" +
-  META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(c.desc)}</td></tr>`).join("") +
-  "</tbody>";
-$("#m-dom").textContent = META.domains.join(" · ");
+// The axis definitions ship in meta.json in English only, so the French labels live here alongside them.
+const LVL_FR = {
+  1: ["enregistrement plat", "un seul objet, tous les champs présents"],
+  2: ["quelques champs", "~3 éléments, toujours un seul enregistrement"],
+  3: ["liste d'étiquettes", "tableaux de valeurs scalaires (≈6)"],
+  4: ["liste d'enregistrements", "un tableau de sous-objets"],
+  5: ["groupes imbriqués", "des sous-objets qui s'imbriquent eux-mêmes (les directions CSV s'arrêtent à L3)"],
+};
+const CHAL_FR = {
+  type:   "nombres/booléens écrits en texte → produire un vrai nombre/booléen",
+  unit:   "retirer les suffixes d'unité (« 30min »→30, « 5 € »→5, « 500g »→500)",
+  enum:   "normaliser le texte de catégorie vers sa forme canonique (« Med »→« medium »)",
+  range:  "borner les nombres hors intervalle (note→0–5, score→0–100)",
+  count:  "ne garder que les N premiers éléments ; supprimer le surplus",
+  wrap:   "envelopper tout le résultat sous une unique clé de premier niveau",
+  escape: "préserver les caractères spéciaux, correctement échappés pour la cible",
+};
+function buildMethodTables() {
+  const fr = LANG === "fr";
+  $("#m-levels").innerHTML =
+    `<thead><tr><th>${fr ? "Niveau" : "Level"}</th><th>${fr ? "Forme" : "Shape"}</th><th>${fr ? "Signification" : "Meaning"}</th></tr></thead><tbody>` +
+    META.levels.map((l) => {
+      const [lab, desc] = fr ? (LVL_FR[l.n] ?? [l.label, l.desc]) : [l.label, l.desc];
+      return `<tr><td class="mono">L${l.n}</td><td>${esc(lab)}</td><td>${esc(desc)}</td></tr>`;
+    }).join("") + "</tbody>";
+  $("#m-chal").innerHTML =
+    `<thead><tr><th>${fr ? "Contrainte" : "Constraint"}</th><th>${fr ? "Ce qu'elle demande" : "What it asks"}</th></tr></thead><tbody>` +
+    META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(fr ? (CHAL_FR[c.key] ?? c.desc) : c.desc)}</td></tr>`).join("") +
+    "</tbody>";
+  $("#m-dom").textContent = META.domains.join(" · ");
+}
+buildMethodTables();
+applyLang();
 </script>
 </body>
 </html>
