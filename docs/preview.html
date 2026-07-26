@@ -1,0 +1,2149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>format-bench — explorer preview</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='4' fill='%232a78d6'/%3E%3Ctext x='8' y='12' font-family='monospace' font-size='11' font-weight='700' fill='%23fff' text-anchor='middle'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+<style>
+/* ── tokens ───────────────────────────────────────────────────────────────
+   Same validated dataviz instance as the live page: series 1 = hosted (blue),
+   series 2 = local (orange), sequential blue ramp for magnitude. Green/amber/red
+   are the reserved STATUS palette — they mark good/middling/poor, never a series,
+   and they always ship with a number beside them so colour is never the only cue. */
+:root {
+  color-scheme: light;
+  --surface: #fbfbf9;
+  --plane: #f4f4f1;
+  --raised: #ffffff;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #898781;
+  --grid: #e1e0d9;
+  --rule: #c3c2b7;
+  --border: rgba(11, 11, 11, .10);
+
+  --hosted: #2a78d6;
+  --local: #eb6834;
+  /* the two prompt modes are a 2-slot CATEGORICAL pair — slots 1 and 2 of the reference theme,
+     validated together in both modes (worst adjacent CVD ΔE 24.7 light / 26.8 dark) */
+  --sp: #2a78d6;
+  --se: #eb6834;
+  --good: #12862f;
+  --mid: #a97406;
+  --bad: #c0392b;
+  --warn: #fab219;
+
+  --s1: #cde2fb; --s2: #9ec5f4; --s3: #6da7ec; --s4: #3987e5;
+  --s5: #256abf; --s6: #184f95; --s7: #0d366b;
+  --void: #f0efec;
+
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --surface: #14161c; --plane: #0d0f13; --raised: #1a1d25;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #262a33; --rule: #383c47; --border: rgba(255,255,255,.10);
+    --hosted: #3987e5; --local: #d95926;
+    --sp: #3987e5; --se: #d95926;
+    --good: #3fbf5c; --mid: #d8a33a; --bad: #e2685c;
+    --s1: #0d366b; --s2: #184f95; --s3: #256abf; --s4: #3987e5;
+    --s5: #6da7ec; --s6: #9ec5f4; --s7: #cde2fb;
+    --void: #383835;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: #14161c; --plane: #0d0f13; --raised: #1a1d25;
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #262a33; --rule: #383c47; --border: rgba(255,255,255,.10);
+  --hosted: #3987e5; --local: #d95926;
+  --good: #3fbf5c; --mid: #d8a33a; --bad: #e2685c;
+  --s1: #0d366b; --s2: #184f95; --s3: #256abf; --s4: #3987e5;
+  --s5: #6da7ec; --s6: #9ec5f4; --s7: #cde2fb;
+  --void: #383835;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+body { margin: 0; background: var(--plane); color: var(--ink); font: 400 15px/1.55 var(--sans); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 20px; }
+a { color: inherit; }
+h1, h2, h3, h4 { line-height: 1.15; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+:focus-visible { outline: 2px solid var(--hosted); outline-offset: 2px; border-radius: 3px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--mono); font-size: .7rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+.hint { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.up { color: var(--good); } .down { color: var(--bad); }
+
+/* ── header ─────────────────────────────────────────────────────────── */
+header { border-bottom: 1px solid var(--border); background: var(--surface); }
+.hrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; letter-spacing: -.02em; }
+.brand .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--hosted); }
+.flag { font: 600 10px var(--mono); letter-spacing: .1em; text-transform: uppercase;
+        border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 2px 8px; }
+.hlinks { display: flex; gap: 6px; align-items: center; }
+.btn { font: 500 13px var(--sans); color: var(--ink-2); background: transparent;
+       border: 1px solid var(--border); border-radius: 999px; padding: 6px 12px; cursor: pointer; text-decoration: none; }
+.btn:hover { background: var(--plane); color: var(--ink); }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.btn.tiny { padding: 3px 9px; font-size: 12px; }
+
+.hero { padding: 40px 0 28px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.hero h1 { font-size: clamp(1.8rem, 4.4vw, 2.9rem); font-weight: 680; max-width: 20ch; }
+.hero p { color: var(--ink-2); max-width: 64ch; margin: 13px 0 0; font-size: 1.01rem; }
+.stats { display: flex; flex-wrap: wrap; gap: 26px; margin-top: 26px; }
+.stat b { display: block; font-size: 1.65rem; font-weight: 660; letter-spacing: -.02em; }
+.stat span { font-family: var(--mono); font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+/* ── tabs ───────────────────────────────────────────────────────────── */
+nav.tabs { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+nav.tabs .wrap { display: flex; gap: 2px; overflow-x: auto; }
+nav.tabs button { background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+                  padding: 13px 14px; font: 500 14px var(--sans); color: var(--muted); white-space: nowrap; }
+nav.tabs button:hover { color: var(--ink); }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--hosted); }
+
+section.view { display: none; padding: 30px 0 80px; }
+section.view.on { display: block; }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+.card + .card { margin-top: 20px; }
+.card > h2 { font-size: 1.05rem; padding: 16px 18px 0; }
+.card > .sub { color: var(--muted); font-size: .86rem; padding: 5px 18px 0; max-width: 78ch; }
+.card > .body { padding: 16px 18px 18px; }
+/* minmax(0,·) or a wide child (a table, a fixed-width chart) refuses to shrink and blows the row out. */
+.cols2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 900px) { .cols2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── controls ───────────────────────────────────────────────────────── */
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
+.controls input[type=search], .controls select {
+  font: 400 13px var(--sans); color: var(--ink); background: var(--raised);
+  border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px;
+}
+.controls input[type=search] { min-width: 180px; }
+.seg { display: flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; }
+.seg button + button { border-left: 1px solid var(--border); }
+
+/* ── brand mark ─────────────────────────────────────────────────────── */
+.gl { flex: none; vertical-align: middle; }
+.mname { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.mname .sm { color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+.pill { font: 600 10.5px var(--mono); padding: 2px 7px; border-radius: 999px;
+        border: 1px solid var(--border); color: var(--ink-2); white-space: nowrap; }
+.pill.hosted { border-color: var(--hosted); color: var(--hosted); }
+.pill.local  { border-color: var(--local);  color: var(--local); }
+
+/* ── score chip: value + status colour, never colour alone ──────────── */
+.chip { display: inline-block; min-width: 2.6em; text-align: center; padding: 2px 6px; border-radius: 6px;
+        font: 700 12.5px var(--mono); font-variant-numeric: tabular-nums; }
+.chip.hi { color: var(--good); background: color-mix(in oklab, var(--good) 16%, transparent); }
+.chip.md { color: var(--mid);  background: color-mix(in oklab, var(--mid) 18%, transparent); }
+.chip.lo { color: var(--bad);  background: color-mix(in oklab, var(--bad) 15%, transparent); }
+.chip.na { color: var(--muted); background: color-mix(in oklab, var(--muted) 14%, transparent); }
+
+/* ── table ──────────────────────────────────────────────────────────── */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { background: var(--surface); font-weight: 600; color: var(--ink-2);
+     font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+td.lft, th.lft { text-align: left; }
+tbody tr:hover { background: var(--plane); }
+button.link { background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+button.link:hover { text-decoration: underline; }
+
+/* ── charts ─────────────────────────────────────────────────────────── */
+svg { display: block; max-width: 100%; }
+/* A scatter stops shrinking past a floor and scrolls inside its card rather than compressing to a blob. */
+.bscatter { overflow-x: auto; margin-bottom: 16px; }
+.bscatter svg { max-width: none; }
+.bscatter .legend { margin-top: 6px; }
+/* the numbered leaderboard under each board */
+.btable { margin-top: 18px; border: 1px solid var(--border); border-radius: 8px; overflow: auto; max-height: 560px; }
+.btable table { font-size: 12.5px; }
+.btable th { position: sticky; top: 0; z-index: 2; }
+.btable td { border-bottom: 1px solid var(--grid); }
+.btable .sm { color: var(--muted); font-size: 11px; font-family: var(--mono); }
+.srk { flex: none; width: 1.8em; text-align: right; font: 600 11px var(--mono);
+       color: var(--muted); font-variant-numeric: tabular-nums; }
+svg text { font-family: var(--mono); font-size: 10px; fill: var(--muted); }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.axis { stroke: var(--rule); stroke-width: 1; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; font-size: 12.5px; color: var(--ink-2); align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: -1px; }
+#tip { position: fixed; z-index: 100; pointer-events: none; opacity: 0; transition: opacity .1s;
+       background: var(--raised); color: var(--ink); border: 1px solid var(--rule); border-radius: 8px;
+       padding: 8px 10px; font-size: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); max-width: 300px; }
+#tip b { display: block; margin-bottom: 3px; }
+#tip .r { font-family: var(--mono); color: var(--ink-2); }
+
+/* ── inline bar rows (the per-axis diagrams) ────────────────────────── */
+.brow { display: grid; grid-template-columns: 132px 1fr; gap: 10px; align-items: center; padding: 4px 0; }
+.brow .bl { font: 500 12.5px var(--sans); color: var(--ink-2); overflow-wrap: anywhere; }
+.brow .bl .k { font-family: var(--mono); font-size: 10.5px; color: var(--muted); display: block; }
+.btrack { position: relative; height: 22px; background: var(--plane); border-radius: 5px; overflow: hidden; }
+/* The green band is the "good" region of the axis, painted under the bars so a bar reaching into it
+   reads as reaching a target rather than merely being long. */
+.btrack .zone { position: absolute; inset: 0 0 0 auto; background: color-mix(in oklab, var(--good) 13%, transparent);
+                border-left: 1px dashed color-mix(in oklab, var(--good) 55%, transparent); }
+.btrack .bar { position: absolute; top: 3px; height: 16px; border-radius: 4px; left: 0; }
+.btrack .bar.p { background: var(--sp); }
+.btrack .bar.p2 { top: 3px; height: 7px; background: var(--sp); }
+.btrack .bar.e2 { top: 12px; height: 7px; background: var(--se); }
+.btrack .vv { position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+              font: 700 11px var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 620px) { .brow { grid-template-columns: 96px 1fr; } }
+/* ── score board rows ───────────────────────────────────────────────── */
+.srow { grid-template-columns: minmax(150px, 250px) minmax(0, 1fr); gap: 10px; padding: 3px 0; }
+.srow .mname { width: 100%; min-width: 0; }
+.srow .snm { min-width: 0; font: 600 12.5px var(--sans); line-height: 1.2; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; display: block; }
+.srow .ssub { display: block; font: 400 10.5px var(--mono); color: var(--muted); overflow: hidden;
+              text-overflow: ellipsis; white-space: nowrap; }
+.sgrp + .sgrp { margin-top: 12px; }
+.sgrph { font: 600 9.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+         padding: 4px 0 5px; border-bottom: 1px solid var(--grid); margin-bottom: 4px; }
+.sboard > h2 { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.sboard .ccount { font: 400 11px var(--mono); color: var(--muted); letter-spacing: 0; }
+.sboard.compact > h2 { font-size: .95rem; padding-top: 13px; }
+.sboard.compact .srow { grid-template-columns: minmax(112px, 165px) minmax(0, 1fr); }
+.sboard.compact .btrack { height: 19px; }
+.sboard.compact .btrack .bar.p2 { top: 2px; height: 6px; }
+.sboard.compact .btrack .bar.e2 { top: 11px; height: 6px; }
+/* ── sections ───────────────────────────────────────────────────────────
+   Numbered because the three really are a sequence: the whole set, then the
+   two families it splits into. The number is the structure, not decoration. */
+#sec-text, #sec-fmt { margin-top: 46px; }
+.sechd { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.secn { flex: none; width: 26px; height: 26px; border-radius: 999px; display: grid; place-items: center;
+        background: var(--ink); color: var(--surface); font: 700 12px var(--mono); }
+.sect { font: 650 1.15rem var(--sans); letter-spacing: -.02em; }
+.secr { flex: 1 1 auto; height: 1px; background: var(--rule); min-width: 20px; }
+
+/* a direction, full width, one per row — never cramped side by side */
+.subs { margin-top: 18px; padding-left: 14px; border-left: 2px solid var(--grid); display: grid; gap: 10px; }
+details.sub { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); overflow: hidden; }
+details.sub > summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+                        padding: 12px 15px; cursor: pointer; list-style: none; }
+details.sub > summary::-webkit-details-marker { display: none; }
+details.sub > summary::after { content: "▸"; margin-left: auto; color: var(--muted); transition: transform .15s; flex: none; }
+details.sub[open] > summary::after { transform: rotate(90deg); }
+details.sub[open] > summary { border-bottom: 1px solid var(--border); background: var(--plane); }
+details.sub > summary:hover { background: var(--plane); }
+.subnm { font: 700 14.5px var(--mono); flex: none; }
+.subnm .ar { color: var(--hosted); }
+.subst { font: 400 11.5px var(--mono); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.subst.best { min-width: 0; overflow: hidden; }
+.subbody { padding: 4px 12px 12px; }
+.subbody .card { border: 0; background: transparent; }
+.subbody .card > h2 { padding-left: 4px; }
+.subbody .card > .body { padding-left: 4px; padding-right: 4px; }
+@media (max-width: 700px) {
+  .subs { padding-left: 8px; }
+  .subst.best { width: 100%; }
+}
+
+/* ── per-chart model picker ─────────────────────────────────────────── */
+.controls.pk { gap: 6px; }
+.mspick { position: relative; }
+.mspick > summary { list-style: none; cursor: pointer; font: 500 12px var(--sans); color: var(--ink-2);
+                    border: 1px solid var(--border); border-radius: 999px; padding: 4px 11px; }
+.mspick > summary::-webkit-details-marker { display: none; }
+.mspick > summary::after { content: " ▾"; color: var(--muted); }
+.mspick[open] > summary { background: var(--plane); color: var(--ink); }
+.mspick .selcount { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.mspanel { position: absolute; z-index: 30; top: calc(100% + 6px); left: 0; width: min(360px, 84vw);
+           background: var(--raised); border: 1px solid var(--rule); border-radius: 10px;
+           box-shadow: 0 12px 32px rgba(0,0,0,.22); padding: 10px; }
+.mspanel .msq { width: 100%; font: 400 13px var(--sans); color: var(--ink); background: var(--surface);
+                border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px; }
+.msbtns { display: flex; gap: 6px; margin: 8px 0; }
+.mslist { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.msrow { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; cursor: pointer; }
+.msrow:hover { background: var(--plane); }
+.msrow[hidden] { display: none; }
+.msnm { flex: 1 1 auto; min-width: 0; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mssc { flex: none; font-size: 11px; min-width: 2.2em; }
+@media (max-width: 620px) {
+  .srow, .sboard.compact .srow { grid-template-columns: minmax(0, 1fr); }
+  .srow .btrack { grid-column: 1 / -1; }
+}
+
+/* ── accordions: direction › level › case ───────────────────────────── */
+details.acc { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-bottom: 8px; overflow: hidden; }
+details.acc > summary { display: flex; align-items: center; gap: 12px; padding: 11px 14px; cursor: pointer; list-style: none; }
+details.acc > summary::-webkit-details-marker { display: none; }
+details.acc > summary::after { content: "▸"; margin-left: 10px; color: var(--muted); transition: transform .15s; flex: none; }
+details.acc[open] > summary::after { transform: rotate(90deg); }
+details.acc[open] > summary { border-bottom: 1px solid var(--border); }
+details.acc > summary:hover { background: var(--plane); }
+.accnm { font: 700 14px var(--mono); }
+.accnm .ar { color: var(--hosted); }
+.accsub { font: 400 11.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.accbody { padding: 10px 12px 12px; background: var(--plane); }
+
+details.lvl { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); margin-bottom: 6px; overflow: hidden; }
+details.lvl > summary { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; list-style: none; }
+details.lvl > summary::-webkit-details-marker { display: none; }
+details.lvl > summary::after { content: "▸"; margin-left: 10px; color: var(--muted); transition: transform .15s; flex: none; }
+details.lvl[open] > summary::after { transform: rotate(90deg); }
+details.lvl[open] > summary { border-bottom: 1px solid var(--border); }
+details.lvl > summary:hover { background: var(--plane); }
+.lvlnm { font: 700 12.5px var(--mono); }
+.lvlbody { padding: 8px 10px 10px; }
+
+/* ── the case matrix ────────────────────────────────────────────────────
+   One grammar at three scales: a square per selected model on a case row is
+   pass/fail; the same square on a level or direction header is that model's
+   pass rate for the whole group. Learn it once, read it everywhere. */
+.strip { display: flex; gap: 2px; flex: none; align-items: center; }
+.sq { width: 11px; height: 11px; border-radius: 2.5px; background: var(--void); }
+.sq.ok { background: var(--good); }
+.sq.no { background: var(--bad); }
+.sq.hi { background: var(--good); }
+.sq.md { background: var(--mid); }
+.sq.lo { background: var(--bad); }
+.sq.na { background: var(--void); box-shadow: inset 0 0 0 1px var(--rule); }
+/* the sticky legend that turns the list into a matrix — glyphs sit over their column */
+.cthead { position: sticky; top: 47px; z-index: 10; display: flex; justify-content: flex-end;
+          align-items: center; gap: 10px; padding: 7px 12px 8px; margin-bottom: 6px;
+          background: var(--surface); border-bottom: 1px solid var(--border); }
+.cthead .lbl { margin-right: auto; font: 500 11.5px var(--mono); color: var(--muted); }
+.cthead .strip { gap: 2px; }
+.cthead .strip > span { width: 11px; display: flex; justify-content: center; }
+.cthead .strip svg { width: 15px; height: 15px; margin: 0 -2px; }
+/* Same fixed width as the trailing meter on every row, so a glyph lands over its own column of squares. */
+.cthead .mtcap { width: 140px; text-align: right; font: 500 10px var(--mono); color: var(--muted); }
+summary .meter { width: 140px; justify-content: flex-end; }
+/* The strip and the meter travel together, right-aligned; the caret follows both. */
+details.acc > summary .strip, details.lvl > summary .strip { margin-left: auto; }
+@media (max-width: 700px) {
+  .cthead .mtcap, summary .meter { width: 100px; }
+}
+.ctempty { padding: 26px 12px; text-align: center; }
+.ctmore { padding: 14px; text-align: center; }
+
+/* one case = one stacked block */
+details.tst { border: 1px solid var(--border); border-radius: 8px; background: var(--raised); margin-bottom: 6px; overflow: hidden; }
+details.tst > summary { display: grid; grid-template-columns: 86px minmax(0, 1fr) auto auto; gap: 10px; align-items: center;
+                        padding: 9px 12px; cursor: pointer; list-style: none; font-family: var(--mono); font-size: 12.5px; }
+details.tst > summary::-webkit-details-marker { display: none; }
+details.tst > summary:hover, details.tst[open] > summary { background: var(--plane); }
+.tid { color: var(--muted); font-size: 11px; }
+.tdesc { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.tdesc .frm { font-weight: 700; } .tdesc .frm .ar { color: var(--hosted); margin: 0 2px; }
+.tdesc .lv { font-size: 10.5px; color: var(--muted); }
+.chl { font: 500 9.5px var(--mono); text-transform: uppercase; letter-spacing: .03em; color: var(--s5);
+       background: color-mix(in oklab, var(--s4) 14%, transparent); padding: 1px 5px; border-radius: 4px; }
+.tstbody { padding: 12px; border-top: 1px solid var(--border); display: grid; gap: 11px; }
+
+/* solve meter — the per-case graph carried in the row itself */
+.meter { display: flex; align-items: center; gap: 7px; }
+.meter .mt { position: relative; width: 90px; height: 9px; border-radius: 999px; background: var(--void); overflow: hidden; flex: none; }
+.meter .mf { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--good); }
+.meter .mn { font: 700 10.5px var(--mono); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) { .meter .mt { width: 54px; } }
+
+.dots { display: flex; gap: 8px; align-items: center; }
+.dgroup { display: flex; gap: 3px; align-items: center; }
+.dgroup .gl2 { font: 400 9px var(--mono); color: var(--muted); margin-right: 2px; }
+.dot { width: 15px; height: 15px; border-radius: 4px; display: inline-flex; align-items: center;
+       justify-content: center; font: 800 10px var(--mono); }
+.dot.ok { color: #fff; background: var(--good); }
+.dot.no { color: #fff; background: var(--bad); }
+.dot.na { color: var(--muted); background: color-mix(in oklab, var(--muted) 20%, transparent); }
+
+/* ── code blocks ────────────────────────────────────────────────────── */
+pre { margin: 0; background: var(--plane); border: 1px solid var(--border); border-radius: 8px;
+      padding: 11px 13px; overflow: auto; font-family: var(--mono); font-size: 12px; line-height: 1.5;
+      white-space: pre-wrap; word-break: break-word; max-height: 320px; }
+.mini { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.mini .mh { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted);
+            padding: 6px 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.mini pre { border: 0; border-radius: 0; background: transparent; max-height: 260px; }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 760px) { .grid2 { grid-template-columns: minmax(0, 1fr); } }
+/* what the model actually replied */
+.mini.reply { background: var(--raised); }
+.mini.reply .mh { align-items: flex-start; }
+.mini.reply .norec { padding: 11px 12px; margin: 0; }
+.vbs { display: flex; gap: 5px; flex-wrap: wrap; }
+.vb { font: 700 9.5px var(--mono); padding: 2px 6px; border-radius: 5px; white-space: nowrap; }
+.vb.ok { color: var(--good); background: color-mix(in oklab, var(--good) 16%, transparent); }
+.vb.no { color: var(--bad); background: color-mix(in oklab, var(--bad) 15%, transparent); }
+.vb.na { color: var(--muted); background: color-mix(in oklab, var(--muted) 14%, transparent); }
+
+/* ── model cards ────────────────────────────────────────────────────── */
+.mgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.mcard { display: flex; flex-direction: column; gap: 9px; text-align: left; cursor: pointer;
+         background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 13px 14px; color: inherit; font: inherit; }
+.mcard:hover { border-color: var(--rule); background: var(--raised); }
+.mcard .top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mcard .nm { font: 600 13.5px var(--sans); overflow-wrap: anywhere; line-height: 1.25; }
+.mcard .pv { font: 400 11px var(--mono); color: var(--muted); }
+.mcard .rk { margin-left: auto; font: 700 11px var(--mono); color: var(--muted); flex: none; }
+.mcard .foot { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+
+/* ── model page ─────────────────────────────────────────────────────── */
+.mhead { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+.mhead h2 { font-size: 1.4rem; overflow-wrap: anywhere; }
+.statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); gap: 10px; margin-top: 16px; }
+.sbox { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.sbox.sec { background: transparent; border-style: dashed; }
+.sbox .k { font: 500 10px var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.sbox .v { font: 700 27px var(--mono); line-height: 1.05; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.sbox .u { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.v.hi { color: var(--good); } .v.md { color: var(--mid); } .v.lo { color: var(--bad); } .v.na { color: var(--muted); font-size: 21px; }
+.callout { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.co { flex: 1 1 240px; border: 1px solid var(--border); border-left: 3px solid var(--good); border-radius: 0 8px 8px 0;
+      background: var(--surface); padding: 10px 13px; }
+.co.bad { border-left-color: var(--bad); }
+.co .k { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+.co .v { font: 600 14px var(--sans); margin-top: 3px; }
+
+/* ── prose ──────────────────────────────────────────────────────────── */
+.prose { max-width: 74ch; }
+.prose h2 { font-size: 1.35rem; margin: 32px 0 10px; }
+.prose h3 { font-size: 1rem; margin: 22px 0 6px; }
+.prose p, .prose li { color: var(--ink-2); }
+.prose code { font-family: var(--mono); font-size: .88em; background: var(--plane);
+              border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+.prose table { margin: 12px 0; font-size: 13px; }
+.prose th, .prose td { text-align: left; white-space: normal; }
+.prose th:first-child, .prose td:first-child { white-space: nowrap; }
+.prose pre { white-space: pre-wrap; }
+.note { border-left: 3px solid var(--warn); background: var(--surface); padding: 12px 16px;
+        border-radius: 0 8px 8px 0; margin: 16px 0; }
+.note b { color: var(--ink); }
+#m-sha { overflow-wrap: anywhere; }
+footer { border-top: 1px solid var(--border); padding: 26px 0 44px; color: var(--muted); font-size: 13px; background: var(--surface); }
+.loading { padding: 60px 0; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+
+/* the verdict table inside an open case */
+.verdicts { max-height: 340px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.verdicts table { font-size: 12.5px; }
+.vmark { font-family: var(--mono); font-weight: 700; }
+
+/* ── reply dialog ───────────────────────────────────────────────────── */
+dialog#replydlg { width: min(760px, calc(100vw - 24px)); max-height: min(84vh, 900px); padding: 0;
+                  border: 1px solid var(--rule); border-radius: 12px; background: var(--surface); color: var(--ink); overflow: hidden; }
+dialog#replydlg::backdrop { background: rgba(0,0,0,.48); backdrop-filter: blur(2px); }
+.dlg-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+            padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.dlg-head h3 { font-size: 1rem; }
+.dlg-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+           padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--plane); }
+.dlg-tabs { display: flex; gap: 2px; }
+.dlg-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+                   padding: 6px 12px; font: 500 13px var(--sans); color: var(--muted); }
+.dlg-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--hosted); }
+.dlg-body { padding: 14px 16px 18px; overflow-y: auto; max-height: calc(84vh - 108px); }
+.dlg-body h4 { font: 600 .68rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 16px 0 6px; }
+.dlg-body h4:first-child { margin-top: 0; }
+.dlg-body pre { max-height: none; }
+pre.diff span { display: block; padding: 0 4px; margin: 0 -4px; border-radius: 2px; }
+.dadd { background: color-mix(in oklab, var(--good) 18%, transparent); color: var(--ink); }
+.ddel { background: color-mix(in oklab, var(--bad) 18%, transparent); color: var(--ink); }
+.dsame { opacity: .58; }
+
+/* ── responsive ─────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .wrap { padding: 0 14px; }
+  .hero { padding: 28px 0 22px; }
+  .stats { gap: 18px 22px; margin-top: 20px; }
+  .stat b { font-size: 1.35rem; }
+  .card > h2, .card > .sub { padding-left: 14px; padding-right: 14px; }
+  .card > .body { padding: 14px; }
+  .detail { padding: 14px; }
+}
+@media (max-width: 620px) {
+  .hrow { flex-wrap: wrap; gap: 10px; }
+  .hlinks { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .btn { padding: 5px 10px; font-size: 12.5px; }
+  nav.tabs button { padding: 11px 10px; font-size: 13px; }
+  .stats { gap: 14px 18px; } .stat { min-width: 70px; } .stat b { font-size: 1.18rem; }
+  .controls input[type=search] { min-width: 0; flex: 1 1 100%; }
+  .controls select { flex: 1 1 auto; }
+  table { font-size: 12.5px; } th, td { padding: 7px 8px; }
+  details.tst > summary { grid-template-columns: 1fr auto; row-gap: 6px; }
+  details.tst > summary .tid { grid-column: 1 / -1; }
+  .prose th:first-child, .prose td:first-child { white-space: normal; }
+  .dlg-body, .dlg-head { padding-left: 13px; padding-right: 13px; }
+}
+@media (hover: none) { #tip { display: none; } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap hrow">
+    <div class="brand"><span class="dot"></span>format-bench<span class="flag">preview</span></div>
+    <div class="hlinks">
+      <a class="btn" href="index.html" data-en="Live page" data-fr="Page en ligne">Live page</a>
+      <a class="btn" href="https://github.com/hadestructhor/format-bench">GitHub</a>
+      <button class="btn" id="lang" aria-label="Langue / Language">FR</button>
+      <button class="btn" id="theme" title="Toggle theme" aria-label="Toggle colour theme">◐</button>
+    </div>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="wrap">
+    <div class="eyebrow" data-en="Data-format conversion benchmark" data-fr="Benchmark de conversion de formats">Data-format conversion benchmark</div>
+    <h1 style="margin-top:10px" data-en="Can a model rewrite your data without breaking it?" data-fr="Un modèle peut-il réécrire vos données sans les casser ?">Can a model rewrite your data without breaking it?</h1>
+    <p data-en="Every model, every case, every axis — open a model for its full report, or open a case to see who solved it and who didn't."
+       data-fr="Chaque modèle, chaque cas, chaque axe — ouvrez un modèle pour son rapport complet, ou un cas pour voir qui l'a résolu et qui non.">
+      Every model, every case, every axis — open a model for its full report, or open a case to see who
+      solved it and who didn't.
+    </p>
+    <div class="stats">
+      <div class="stat"><b class="mono" id="s-models">—</b><span data-en="models" data-fr="modèles">models</span></div>
+      <div class="stat"><b class="mono" id="s-cases">—</b><span data-en="test cases" data-fr="cas de test">test cases</span></div>
+      <div class="stat"><b class="mono">9</b><span data-en="directions" data-fr="directions">directions</span></div>
+      <div class="stat"><b class="mono">7</b><span data-en="constraints" data-fr="contraintes">constraints</span></div>
+      <div class="stat"><b class="mono" id="s-top">—</b><span data-en="best task score" data-fr="meilleur score task">best task score</span></div>
+      <div class="stat"><b class="mono" id="s-none">—</b><span data-en="solved by nobody" data-fr="résolus par personne">solved by nobody</span></div>
+    </div>
+  </div>
+</div>
+
+<nav class="tabs">
+  <div class="wrap" role="tablist">
+    <button role="tab" aria-selected="true"  data-v="overview" data-en="Overview" data-fr="Vue d'ensemble">Overview</button>
+    <button role="tab" aria-selected="false" data-v="models"   data-en="Models"   data-fr="Modèles">Models</button>
+    <button role="tab" aria-selected="false" data-v="cases"    data-en="All cases" data-fr="Tous les cas">All cases</button>
+    <button role="tab" aria-selected="false" data-v="method"   data-en="Methodology" data-fr="Méthodologie">Methodology</button>
+  </div>
+</nav>
+
+<main class="wrap">
+  <div class="loading" id="loading" data-en="loading results…" data-fr="chargement des résultats…">loading results…</div>
+
+  <!-- ══ overview ════════════════════════════════════════════════════ -->
+  <section class="view on" id="v-overview" role="tabpanel" hidden>
+    <!-- Score boards. One global, one per family of directions, one per direction. Each carries its
+         own model selection so a chart can be re-pointed without disturbing the others. -->
+    <div id="sec-all"></div>
+    <div id="sec-text"></div>
+    <div id="sec-fmt"></div>
+
+    <div class="cols2" style="margin-top:20px">
+      <div class="card" style="margin-top:0">
+        <h2 data-en="Which direction is hardest?" data-fr="Quelle direction est la plus dure ?">Which direction is hardest?</h2>
+        <p class="sub" data-en="Average task score over every model, per conversion direction." data-fr="Score task moyen sur tous les modèles, par direction de conversion.">Average task score over every model, per conversion direction.</p>
+        <div class="body"><div id="bydir"></div></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <h2 data-en="By structural level" data-fr="Par niveau structurel">By structural level</h2>
+        <p class="sub" data-en="How the shape of the data changes the odds. Levels compare within a direction, not across." data-fr="Comment la forme des données change la donne. Les niveaux se comparent au sein d'une direction, pas entre elles.">How the shape of the data changes the odds. Levels compare within a direction, not across.</p>
+        <div class="body"><div id="bylvl"></div></div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <h2 data-en="By domain" data-fr="Par domaine">By domain</h2>
+        <p class="sub" data-en="The eight subject areas the cases are drawn from." data-fr="Les huit domaines dont les cas sont tirés.">The eight subject areas the cases are drawn from.</p>
+        <div class="body"><div id="bydom"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-en="Does a worked example help?" data-fr="Un exemple résolu aide-t-il ?">Does a worked example help?</h2>
+      <p class="sub" data-en="Change in task score when one solved example of the same direction is prepended. Green = the example helped." data-fr="Variation du score task quand un exemple résolu de la même direction est ajouté. Vert = l'exemple a aidé.">Change in task score when one solved example of the same direction is prepended. Green = the example helped.</p>
+      <div class="body"><div id="delta"></div></div>
+    </div>
+  </section>
+
+  <!-- ══ models ══════════════════════════════════════════════════════ -->
+  <section class="view" id="v-models" role="tabpanel" hidden>
+    <div class="card">
+      <h2 data-en="Every model" data-fr="Tous les modèles">Every model</h2>
+      <p class="sub" data-en="Open one for its full report: per-direction, per-level, per-domain and per-constraint scores, and every case it was asked." data-fr="Ouvrez-en un pour son rapport complet : scores par direction, niveau, domaine et contrainte, et chacun des cas posés.">Open one for its full report: per-direction, per-level, per-domain and per-constraint scores, and every case it was asked.</p>
+      <div class="body">
+        <div class="controls">
+          <input type="search" id="mq" placeholder="Filter models…" aria-label="Filter models" data-ph-en="Filter models…" data-ph-fr="Filtrer les modèles…">
+          <div class="seg" role="group" aria-label="Deployment filter">
+            <button class="btn" data-f="all" aria-pressed="true" data-en="All" data-fr="Tous">All</button>
+            <button class="btn" data-f="hosted" aria-pressed="false" data-en="Hosted" data-fr="Hébergés">Hosted</button>
+            <button class="btn" data-f="local" aria-pressed="false" data-en="Local" data-fr="Locaux">Local</button>
+          </div>
+          <select id="msort" aria-label="Sort">
+            <option value="best" data-en="Best score" data-fr="Meilleur score">Best score</option>
+            <option value="delta" data-en="Biggest example lift" data-fr="Plus grand gain d'exemple">Biggest example lift</option>
+            <option value="size" data-en="Largest" data-fr="Plus gros">Largest</option>
+            <option value="small" data-en="Smallest" data-fr="Plus petits">Smallest</option>
+            <option value="name" data-en="Name" data-fr="Nom">Name</option>
+          </select>
+          <span class="hint" id="mcount"></span>
+        </div>
+        <div class="mgrid" id="mgrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ one model ═══════════════════════════════════════════════════ -->
+  <section class="view" id="v-model" role="tabpanel" hidden>
+    <button class="btn" id="mback" style="margin-bottom:14px">← <span data-en="All models" data-fr="Tous les modèles">All models</span></button>
+    <div id="mpage"></div>
+  </section>
+
+  <!-- ══ all cases ═══════════════════════════════════════════════════ -->
+  <section class="view" id="v-cases" role="tabpanel" hidden>
+    <div class="card">
+      <h2 data-en="All 2,025 cases" data-fr="Les 2 025 cas">All 2,025 cases</h2>
+      <p class="sub"
+         data-en="Every case, grouped by direction and level or as one flat list. Pick the models you care about and their verdicts appear as a column of squares on every row — green passed, red missed — carrying the same grid up into each level and direction header, where the square shows that model's pass rate for the whole group."
+         data-fr="Chaque cas, groupé par direction et niveau ou en une liste continue. Choisissez les modèles qui vous intéressent : leurs verdicts apparaissent en colonne de carrés sur chaque ligne — vert réussi, rouge manqué — et la même grille remonte dans chaque en-tête de niveau et de direction, où le carré donne le taux de réussite du modèle sur tout le groupe.">
+        Every case, grouped by direction and level or as one flat list. Pick the models you care about and their
+        verdicts appear as a column of squares on every row — green passed, red missed — carrying the same grid
+        up into each level and direction header, where the square shows that model's pass rate for the group.
+      </p>
+      <div class="body">
+        <div class="controls">
+          <div class="seg" id="ct-mode" role="group" aria-label="Layout">
+            <button class="btn" data-m="grouped" aria-pressed="true" data-en="Grouped" data-fr="Groupé">Grouped</button>
+            <button class="btn" data-m="flat" aria-pressed="false" data-en="Flat list" data-fr="Liste continue">Flat list</button>
+          </div>
+          <select id="c-dir" aria-label="Direction"><option value="" data-en="Any direction" data-fr="Toute direction">Any direction</option></select>
+          <select id="c-lvl" aria-label="Level"><option value="" data-en="Any level" data-fr="Tout niveau">Any level</option></select>
+          <select id="c-dom" aria-label="Domain"><option value="" data-en="Any domain" data-fr="Tout domaine">Any domain</option></select>
+          <select id="c-chal" aria-label="Constraint"><option value="" data-en="Any constraint" data-fr="Toute contrainte">Any constraint</option></select>
+          <select id="c-solve" aria-label="Solve rate">
+            <option value="" data-en="Any solve rate" data-fr="Tout taux de réussite">Any solve rate</option>
+            <option value="none" data-en="Solved by nobody" data-fr="Résolus par personne">Solved by nobody</option>
+            <option value="hard" data-en="Solved by under a third" data-fr="Résolus par moins d'un tiers">Solved by under a third</option>
+            <option value="easy" data-en="Solved by over 80%" data-fr="Résolus par plus de 80 %">Solved by over 80%</option>
+          </select>
+          <input type="search" id="c-q" placeholder="Case id…" aria-label="Case id" data-ph-en="Case id…" data-ph-fr="Identifiant de cas…">
+          <details class="mspick" id="ct-pick"><summary data-en="Pick models" data-fr="Choisir les modèles">Pick models</summary>
+            <div class="mspanel">
+              <input type="search" class="msq" aria-label="Filter models" data-ph-en="Filter…" data-ph-fr="Filtrer…" placeholder="Filter…">
+              <div class="msbtns">
+                <button class="btn tiny" data-ctpreset="top5" data-en="Top 5" data-fr="Top 5">Top 5</button>
+                <button class="btn tiny" data-ctpreset="mix" data-en="3 hosted · 2 local" data-fr="3 hébergés · 2 locaux">3 hosted · 2 local</button>
+                <button class="btn tiny" data-ctpreset="none" data-en="Clear" data-fr="Vider">Clear</button>
+              </div>
+              <div class="mslist"></div>
+            </div></details>
+          <button class="btn" id="c-expand" data-en="Open every direction" data-fr="Ouvrir toutes les directions">Open every direction</button>
+          <span class="hint" id="c-count"></span>
+        </div>
+        <div id="ct-head" class="cthead"></div>
+        <div id="ctree"></div>
+        <div id="ct-more"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ methodology ═════════════════════════════════════════════════ -->
+  <section class="view" id="v-method" role="tabpanel" hidden>
+    <div class="card"><div class="body prose">
+      <h2 style="margin-top:0" data-en="What is measured" data-fr="Ce qui est mesuré">What is measured</h2>
+      <p data-en="Each case gives the model data in one format and asks for it in another, plus a set of transformation rules. The reply is graded on two axes:" data-fr="Chaque cas fournit au modèle des données dans un format et les demande dans un autre, avec un ensemble de règles de transformation. La réponse est notée sur deux axes :">
+        Each case gives the model data in one format and asks for it in another, plus a set of transformation rules. The reply is graded on two axes:
+      </p>
+      <ul>
+        <li data-en="&lt;b&gt;task&lt;/b&gt; — the correct value appears anywhere in the reply. Prose and code fences are tolerated. This asks: &lt;i&gt;did the conversion work?&lt;/i&gt;"
+            data-fr="&lt;b&gt;task&lt;/b&gt; — la bonne valeur apparaît n'importe où dans la réponse. La prose et les balises de code sont tolérées. La question : &lt;i&gt;la conversion a-t-elle fonctionné ?&lt;/i&gt;">
+          <b>task</b> — the correct value appears anywhere in the reply. Prose and code fences are tolerated. This asks: <i>did the conversion work?</i></li>
+        <li data-en="&lt;b&gt;strict&lt;/b&gt; — the entire trimmed reply parses as the target format and equals the expected value. This asks: &lt;i&gt;can it follow &quot;reply with only the value&quot;?&lt;/i&gt;"
+            data-fr="&lt;b&gt;strict&lt;/b&gt; — la réponse entière, une fois élaguée, se parse dans le format cible et égale la valeur attendue. La question : &lt;i&gt;sait-il suivre « ne réponds qu'avec la valeur » ?&lt;/i&gt;">
+          <b>strict</b> — the entire trimmed reply parses as the target format and equals the expected value. This asks: <i>can it follow "reply with only the value"?</i></li>
+      </ul>
+      <p data-en="Comparison is structural, not textual: object keys are order-insensitive, arrays are ordered, and types are strict — &lt;code&gt;&quot;22&quot;&lt;/code&gt; is not &lt;code&gt;22&lt;/code&gt;."
+         data-fr="La comparaison est structurelle, pas textuelle : l'ordre des clés n'importe pas, les tableaux sont ordonnés, et les types sont stricts — &lt;code&gt;&quot;22&quot;&lt;/code&gt; n'est pas &lt;code&gt;22&lt;/code&gt;.">
+        Comparison is structural, not textual: object keys are order-insensitive, arrays are ordered, and types are strict — <code>"22"</code> is not <code>22</code>.
+      </p>
+
+      <h2 data-en="The axes" data-fr="Les axes">The axes</h2>
+      <h3 data-en="Directions (9)" data-fr="Directions (9)">Directions (9)</h3>
+      <p>text→json · text→yaml · text→csv · json→yaml · json→csv · yaml→json · yaml→csv · csv→json · csv→yaml</p>
+      <p data-en="The CSV→* directions are the hardest, and that is not an accident: CSV erases types, so the model has to reconstruct which cells were numbers, which were booleans, and which were strings that merely look numeric."
+         data-fr="Les directions CSV→* sont les plus dures, et ce n'est pas un hasard : le CSV efface les types, donc le modèle doit reconstruire quelles cellules étaient des nombres, lesquelles des booléens, et lesquelles des chaînes qui ressemblent seulement à des nombres.">
+        The CSV→* directions are the hardest, and that is not an accident: CSV erases types, so the model has to reconstruct which cells were numbers, which were booleans, and which were strings that merely look numeric.
+      </p>
+      <h3 data-en="Structural levels (5)" data-fr="Niveaux structurels (5)">Structural levels (5)</h3>
+      <table id="m-levels"></table>
+      <h3 data-en="Constraints (7)" data-fr="Contraintes (7)">Constraints (7)</h3>
+      <table id="m-chal"></table>
+      <h3 data-en="Domains (8)" data-fr="Domaines (8)">Domains (8)</h3>
+      <p id="m-dom"></p>
+
+      <h2 data-en="Prompt modes" data-fr="Modes de prompt">Prompt modes</h2>
+      <p data-en="Every model is measured twice. &lt;b&gt;plain&lt;/b&gt; sends the instructions alone. &lt;b&gt;explained&lt;/b&gt; prepends one solved example of the same direction, drawn from a train split that shares no inputs with the test set."
+         data-fr="Chaque modèle est mesuré deux fois. &lt;b&gt;simple&lt;/b&gt; envoie les consignes seules. &lt;b&gt;avec exemple&lt;/b&gt; ajoute un exemple résolu de la même direction, tiré d'un split d'entraînement qui ne partage aucune entrée avec le jeu de test.">
+        Every model is measured twice. <b>plain</b> sends the instructions alone. <b>explained</b> prepends one solved example of the same direction, drawn from a train split that shares no inputs with the test set.
+      </p>
+
+      <h2 data-en="Limitations" data-fr="Limites">Limitations</h2>
+      <div class="note" data-en="&lt;b&gt;The &lt;code&gt;enum&lt;/code&gt; constraint is partly unguessable in v1.0.&lt;/b&gt; Some expected values cannot be derived from the instruction: &lt;code&gt;Pre-order → preorder&lt;/code&gt; drops the underscore the given example implies, and &lt;code&gt;clear → cleared&lt;/code&gt; is a different word. The leaderboard therefore also carries a task score with enum cases removed."
+           data-fr="&lt;b&gt;La contrainte &lt;code&gt;enum&lt;/code&gt; est en partie indevinable en v1.0.&lt;/b&gt; Certaines valeurs attendues ne se déduisent pas de la consigne : &lt;code&gt;Pre-order → preorder&lt;/code&gt; perd le tiret bas que l'exemple laissait supposer, et &lt;code&gt;clear → cleared&lt;/code&gt; est un autre mot. Le classement porte donc aussi un score task hors cas enum.">
+        <b>The <code>enum</code> constraint is partly unguessable in v1.0.</b> Some expected values cannot be derived from the instruction: <code>Pre-order → preorder</code> drops the underscore the given example implies, and <code>clear → cleared</code> is a different word. The leaderboard therefore also carries a task score with enum cases removed.
+      </div>
+      <div class="note" data-en="&lt;b&gt;Levels are comparable within a direction, not across.&lt;/b&gt; Levels 1–3 include the CSV directions while 4–5 are nested-only, so the level axis is confounded with direction difficulty."
+           data-fr="&lt;b&gt;Les niveaux sont comparables au sein d'une direction, pas entre elles.&lt;/b&gt; Les niveaux 1 à 3 incluent les directions CSV alors que 4 et 5 sont uniquement imbriqués : l'axe des niveaux est donc confondu avec la difficulté de direction.">
+        <b>Levels are comparable within a direction, not across.</b> Levels 1–3 include the CSV directions while 4–5 are nested-only, so the level axis is confounded with direction difficulty.
+      </div>
+
+      <h2 data-en="Reproducing this" data-fr="Reproduire ces résultats">Reproducing this</h2>
+      <pre>git clone https://github.com/hadestructhor/format-bench
+cd format-bench &amp;&amp; bun install
+
+# prove the harness agrees with the reference answers (should print 2025/2025)
+bun bench.ts gold
+
+# score your own model
+bun bench.ts run --base-url http://localhost:8000/v1 --api-key sk-… -m my-model</pre>
+      <p id="m-sha" class="hint" style="margin-top:14px"></p>
+    </div></div>
+  </section>
+</main>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<dialog id="replydlg" aria-labelledby="rd-title">
+  <div class="dlg-head">
+    <div><h3 id="rd-title"></h3><div class="hint mono" id="rd-meta"></div></div>
+    <button class="btn" id="rd-close" aria-label="Close">✕</button>
+  </div>
+  <div class="dlg-bar"><div class="dlg-tabs" id="rd-tabs" role="tablist"></div><div class="dlg-modes" id="rd-modes"></div></div>
+  <div class="dlg-body" id="rd-body"></div>
+</dialog>
+
+<footer><div class="wrap">
+  <span data-en="format-bench · Apache-2.0 · local preview, not published" data-fr="format-bench · Apache-2.0 · aperçu local, non publié">format-bench · Apache-2.0 · local preview, not published</span> ·
+  <span id="f-gen" class="mono"></span>
+</div></footer>
+
+<script type="module">
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const pretty = (v) => typeof v === "string" ? v : JSON.stringify(v, null, 2);
+const root = document.documentElement;
+const cssv = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+
+// ── theme ──────────────────────────────────────────────────────────────
+$("#theme").onclick = () => {
+  const cur = root.getAttribute("data-theme");
+  const dark = cur ? cur === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.setAttribute("data-theme", dark ? "light" : "dark");
+  rerenderAll();                              // charts bake theme colours into attributes
+};
+
+// ── language ───────────────────────────────────────────────────────────
+let LANG = localStorage.getItem("fb-lang")
+  || ((navigator.language || "en").toLowerCase().startsWith("fr") ? "fr" : "en");
+const STR = {
+  models: { en: "model", fr: "modèle" }, modelsPl: { en: "models", fr: "modèles" },
+  cases: { en: "case", fr: "cas" }, casesPl: { en: "cases", fr: "cas" },
+  local: { en: "local", fr: "local" }, hosted: { en: "hosted", fr: "hébergé" },
+  plain: { en: "plain", fr: "simple" }, explained: { en: "explained", fr: "avec exemple" },
+  reply: { en: "reply", fr: "réponse" }, viewReply: { en: "View reply", fr: "Voir la réponse" },
+  noReply: { en: "not recorded", fr: "non enregistrée" },
+  input: { en: "Input", fr: "Entrée" },
+  expected: { en: "Expected", fr: "Attendu" }, promptSent: { en: "Prompt sent", fr: "Prompt envoyé" },
+  howModels: { en: "How models did", fr: "Résultats des modèles" },
+  solvedBy: { en: "solved by", fr: "résolu par" }, of: { en: "of", fr: "sur" },
+  level: { en: "level", fr: "niveau" }, model: { en: "Model", fr: "Modèle" },
+  loading: { en: "loading…", fr: "chargement…" },
+  noMatch: { en: "no cases match those filters", fr: "aucun cas ne correspond à ces filtres" },
+  showingFirst: { en: "showing first 400 of", fr: "400 premiers sur" },
+  enumEx: { en: "enum-excluded", fr: "hors enum" },
+  helped: { en: "helped", fr: "aidés" }, hurt: { en: "hurt", fr: "desservis" },
+  unchanged: { en: "unchanged", fr: "inchangés" },
+  noConstraint: { en: "no constraint", fr: "sans contrainte" },
+  taskScore: { en: "task score", fr: "score task" }, paramsLog: { en: "parameters (log)", fr: "paramètres (log)" },
+  rank: { en: "rank", fr: "rang" }, size: { en: "size", fr: "taille" },
+  bestAt: { en: "Strongest axis", fr: "Point fort" }, worstAt: { en: "Weakest axis", fr: "Point faible" },
+  demoLift: { en: "Δ example lift", fr: "Δ gain d'exemple" },
+  instrGap: { en: "instruction gap", fr: "écart de consigne" },
+  gapNote: { en: "task − strict: right answer, extra words", fr: "task − strict : bonne réponse, mots en trop" },
+  everyTest: { en: "Every case it was asked", fr: "Tous les cas posés" },
+  byDirection: { en: "By direction", fr: "Par direction" }, byDomain: { en: "By domain", fr: "Par domaine" },
+  byLevel: { en: "By level", fr: "Par niveau" }, byConstraint: { en: "By constraint", fr: "Par contrainte" },
+  howAsked: { en: "How it was asked", fr: "Comment on l'a demandé" },
+  vsFleet: { en: "green band = above the fleet average", fr: "bande verte = au-dessus de la moyenne du parc" },
+  correctAnywhere: { en: "correct value anywhere", fr: "bonne valeur n'importe où" },
+  onlyTheValue: { en: "only-the-value reply", fr: "réponse limitée à la valeur" },
+  withDemo: { en: "with a worked demo", fr: "avec un exemple résolu" },
+  collapseAll: { en: "Close everything", fr: "Tout fermer" },
+  expandAll: { en: "Open every direction", fr: "Ouvrir toutes les directions" },
+  openAllDirs: { en: "Open every direction", fr: "Ouvrir toutes les directions" },
+  closeAllDirs: { en: "Close every direction", fr: "Fermer toutes les directions" },
+  bestZone: { en: "leading scores", fr: "meilleurs scores" },
+};
+const T = (k) => (STR[k] ?? {})[LANG] ?? k;
+const isFr = () => LANG === "fr";
+
+// ── the dataset's own vocabulary ───────────────────────────────────────
+const DOM_FR = { recipe: "recette", product: "produit", basket: "panier", profile: "profil",
+                 event: "événement", sensor: "capteur", media: "média", transaction: "transaction" };
+const DIF_FR = { easy: "facile", moderate: "modéré", hard: "difficile", extreme: "extrême" };
+const CHAL_FR_NAME = { type: "type", unit: "unité", enum: "énumération", range: "intervalle",
+                       count: "comptage", wrap: "enveloppe", escape: "échappement" };
+const LVL_FR = {
+  1: ["enregistrement plat", "un seul objet, tous les champs présents"],
+  2: ["quelques champs", "~3 éléments, toujours un seul enregistrement"],
+  3: ["liste d'étiquettes", "tableaux de valeurs scalaires (≈6)"],
+  4: ["liste d'enregistrements", "un tableau de sous-objets"],
+  5: ["groupes imbriqués", "des sous-objets qui s'imbriquent eux-mêmes (les directions CSV s'arrêtent à L3)"],
+};
+const CHAL_FR_DESC = {
+  type: "nombres/booléens écrits en texte → produire un vrai nombre/booléen",
+  unit: "retirer les suffixes d'unité (« 30min »→30, « 5 € »→5, « 500g »→500)",
+  enum: "normaliser le texte de catégorie vers sa forme canonique (« Med »→« medium »)",
+  range: "borner les nombres hors intervalle (note→0–5, score→0–100)",
+  count: "ne garder que les N premiers éléments ; supprimer le surplus",
+  wrap: "envelopper tout le résultat sous une unique clé de premier niveau",
+  escape: "préserver les caractères spéciaux, correctement échappés pour la cible",
+};
+const tDom = (d) => isFr() ? (DOM_FR[d] ?? d) : d;
+const tDif = (d) => isFr() ? (DIF_FR[d] ?? d) : d;
+const tChal = (k) => isFr() ? (CHAL_FR_NAME[k] ?? k) : k;
+const tLvlLabel = (n, fb) => isFr() ? (LVL_FR[n]?.[0] ?? fb) : fb;
+const dirLabel = (d) => d.replace(">", " → ");
+
+// ── data ───────────────────────────────────────────────────────────────
+let META, BOARD, CASES, CSTAT, LOGOS, ERRS, MODELCACHE = new Map();
+try {
+  [META, BOARD, CASES, CSTAT, LOGOS, ERRS] = await Promise.all(
+    ["meta", "board", "cases", "casestats", "logos", "errors"].map((f) => fetch(`data/${f}.json`).then((r) => {
+      if (!r.ok) throw new Error(`${f}.json — HTTP ${r.status}`);
+      return r.json();
+    })));
+} catch (e) {
+  $("#loading").innerHTML = `could not load results: ${esc(e.message)}<br><br>` +
+    `Serve the folder rather than opening the file:<br><code>python3 -m http.server -d docs 8123</code>`;
+  throw e;
+}
+$("#loading").remove();
+$$(".view").forEach((v) => v.removeAttribute("hidden"));
+
+const DIRS = META.directions;
+const NM = CSTAT.models;                              // how many models each case was run against
+const byId = new Map(CASES.map((c) => [c.id, c]));
+const best = (m) => Math.max(m.plain.task, m.ex.task);
+const RANK = new Map([...BOARD].sort((a, b) => best(b) - best(a)).map((m, i) => [m.slug, i + 1]));
+
+$("#s-models").textContent = BOARD.length;
+$("#s-cases").textContent = CASES.length.toLocaleString(isFr() ? "fr-FR" : "en-US");
+$("#s-top").textContent = Math.max(...BOARD.map(best));
+$("#s-none").textContent = CASES.filter((c) => solved(c.id) === 0).length;
+$("#f-gen").textContent = new Date(META.generated).toISOString().slice(0, 10);
+$("#m-sha").textContent = `dataset sha256 ${META.datasetSha}`;
+
+/** Models that got this case right in either prompt mode — the per-case difficulty signal. */
+function solved(id) { const s = CSTAT.stat[id]; return s ? Math.max(s[0], s[2]) : 0; }
+
+// ── cases that were never answered ─────────────────────────────────────
+// A call that exhausted its retries was written into the results with a score of 0. That is an
+// infrastructure failure, not a wrong answer, so it must not be shown as one. See scripts/build-errors.ts.
+const ERRSET = new Map();
+for (const [slug, e] of Object.entries(ERRS ?? {})) {
+  ERRSET.set(slug, { p: new Set(e.p ?? []), e: new Set(e.e ?? []), pNote: e.pNote, eNote: e.eNote });
+}
+/** The provider error for this model/mode/case, or null if the case really was answered. */
+function notRun(slug, mode, id) {
+  const e = ERRSET.get(slug);
+  if (!e) return null;
+  return e[mode]?.has(id) ? (mode === "p" ? e.pNote : e.eNote) ?? "error" : null;
+}
+/** The verdict to display: null when the case was never answered, so it reads "–" and not "✗". */
+const verdictOf = (slug, mode, id, raw) => notRun(slug, mode, id) ? null : raw;
+const errCount = (slug) => { const e = ERRSET.get(slug); return e ? e.p.size + e.e.size : 0; };
+
+// Fleet averages, used to place the green "above average" band on the per-model diagrams.
+const avgOf = (pick) => { const v = BOARD.map(pick).filter((x) => x != null); return v.reduce((a, b) => a + b, 0) / (v.length || 1); };
+const FLEET = {
+  dir: Object.fromEntries(DIRS.map((d) => [d, avgOf((m) => Math.max(m.plain.dir[d] ?? -1, m.ex.dir[d] ?? -1)) ])),
+  domain: Object.fromEntries(META.domains.map((d) => [d, avgOf((m) => Math.max(m.plain.domain[d] ?? -1, m.ex.domain[d] ?? -1))])),
+  level: Object.fromEntries(META.levels.map((l) => [l.n, avgOf((m) => Math.max(m.plain.level[l.n] ?? -1, m.ex.level[l.n] ?? -1))])),
+  challenge: Object.fromEntries(META.challenges.map((c) => [c.key, avgOf((m) => Math.max(m.plain.challenge[c.key] ?? -1, m.ex.challenge[c.key] ?? -1))])),
+  task: avgOf(best),
+};
+
+// ── brand marks ────────────────────────────────────────────────────────
+/** The model's family glyph, recovered from the original generated pages (see scripts/recover-logos.ts). */
+function mark(m, size = 24) {
+  const g = LOGOS[m.name];
+  const c = g?.c ?? cssv(m.local ? "--local" : "--hosted");
+  const inner = g?.d ? `<g transform="translate(3.9,3.9) scale(.675)"><path d="${g.d}" fill="${c}"/></g>`
+    : g?.u ? `<image x="4" y="4" width="16" height="16" href="${g.u}"/>`
+    : `<text x="12" y="16.3" text-anchor="middle" font-family="ui-monospace,monospace" font-size="10.5" font-weight="700" fill="${c}">${esc((g?.t ?? m.model.replace(/^[^_]*_/, "").slice(0, 2)).toLowerCase())}</text>`;
+  return `<svg class="gl" viewBox="0 0 24 24" width="${size}" height="${size}" aria-hidden="true">`
+       + `<rect x="1" y="1" width="22" height="22" rx="5.5" fill="#fff" stroke="${c}" stroke-width="1.2"/>${inner}</svg>`;
+}
+
+// ── shared bits ────────────────────────────────────────────────────────
+const fmtSize = (m) => m.params == null ? "—"
+  : m.params >= 1e6 ? (m.params / 1e6).toFixed(1).replace(/\.0$/, "") + "T"
+  : m.params >= 1000 ? (m.params / 1000).toFixed(m.params % 1000 ? 1 : 0).replace(/\.0$/, "") + "B"
+  : m.params + "M";
+/** Status band for a 0–100 score. The number is always printed next to it — colour is never the only cue. */
+const band = (v) => v == null ? "na" : v >= 65 ? "hi" : v >= 35 ? "md" : "lo";
+const chip = (v) => `<span class="chip ${band(v)}">${v == null ? "–" : v}</span>`;
+
+const tip = $("#tip");
+function showTip(e, html) {
+  tip.innerHTML = html; tip.style.opacity = "1";
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY + 14;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+const hideTip = () => tip.style.opacity = "0";
+function hoverable(el, html) {
+  el.addEventListener("mousemove", (e) => showTip(e, html));
+  el.addEventListener("mouseleave", hideTip);
+}
+
+/**
+ * One diagram row: a label, a track, and one or two bars — plus an optional green zone marking the
+ * region that counts as good on this axis (the fleet average, or the leading band).
+ */
+function brow({ label, key, p, e, zone }) {
+  const z = zone == null ? "" : `<span class="zone" style="width:${(100 - zone).toFixed(1)}%"></span>`;
+  const bars = e == null
+    ? `<span class="bar p" style="width:${Math.max(0, p ?? 0)}%"></span>`
+    : `<span class="bar p2" style="width:${Math.max(0, p ?? 0)}%"></span><span class="bar e2" style="width:${Math.max(0, e ?? 0)}%"></span>`;
+  const val = e == null ? (p == null ? "–" : p) : `${p ?? "–"} · ${e ?? "–"}`;
+  return `<div class="brow"><div class="bl">${esc(label)}${key ? `<span class="k">${esc(key)}</span>` : ""}</div>`
+       + `<div class="btrack">${z}${bars}<span class="vv">${val}</span></div></div>`;
+}
+/** `zoneText` names what the green band means on this particular chart — it is not always the fleet mean. */
+const barLegend = (zoneText) => `<div class="legend">`
+  + `<span><i style="background:var(--sp)"></i>${T("plain")}</span>`
+  + `<span><i style="background:var(--se)"></i>${T("explained")}</span>`
+  + (zoneText ? `<span><i style="background:color-mix(in oklab, var(--good) 20%, transparent);border:1px dashed var(--good)"></i>${zoneText}</span>` : "")
+  + `</div>`;
+const ZONE_FLEET = () => T("vsFleet");
+const ZONE_BASE = () => isFr() ? "bande verte = au niveau de la référence sans contrainte"
+                               : "green band = at the no-constraint baseline";
+
+// ── reply dialog (replies are only present when a run used --save-responses) ──
+const REPLIES = new Map();
+const dlg = $("#replydlg");
+let RD = null, RDMODE = "plain", RDTAB = "reply";
+
+/** The exact system prompt run.ts sent, rebuilt from the case (mirrors systemFor in run.ts). */
+function promptFor(c, explained) {
+  const F = (c.from ?? "data").toUpperCase(), TT = (c.to ?? "json").toUpperCase();
+  let p = `You reformat data. The input below is ${F === "TEXT" ? "field notes (text)" : F}; produce ${TT}.\n`
+        + `${c.instructions ?? ""}\n`
+        + `Reply with ONLY the ${TT} value — nothing else: no prose, no explanation, no markdown code fences, no "Output:" label.`;
+  const d = explained ? (META.demos ?? {})[`${c.from}>${c.to}`] : null;
+  if (d) p += `\n\nWorked example — for this input:\n${d.input}\nthe correct reply is exactly:\n${d.output}`
+            + `\n\nNow do the same for the input below — reply with ONLY the ${TT}.`;
+  return p;
+}
+function diffLines(a, b) {
+  const A = a.split("\n"), B = b.split("\n"), m = A.length, n = B.length;
+  if (m * n > 400000) return [{ t: "-", v: a }, { t: "+", v: b }];
+  const L = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+  for (let i = m - 1; i >= 0; i--)
+    for (let j = n - 1; j >= 0; j--)
+      L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+  const out = []; let i = 0, j = 0;
+  while (i < m && j < n) {
+    if (A[i] === B[j]) { out.push({ t: " ", v: A[i] }); i++; j++; }
+    else if (L[i + 1][j] >= L[i][j + 1]) { out.push({ t: "-", v: A[i] }); i++; }
+    else { out.push({ t: "+", v: B[j] }); j++; }
+  }
+  while (i < m) out.push({ t: "-", v: A[i++] });
+  while (j < n) out.push({ t: "+", v: B[j++] });
+  return out;
+}
+function renderReplyBody() {
+  const c = byId.get(RD.id), got = RDMODE === "ex" ? RD.ex : RD.plain, want = pretty(c?.expected);
+  // The mode on screen may not be the one that has a reply. Say so instead of silently rendering the
+  // other mode's text, which makes a ✗ in one column look like it contradicts a correct answer.
+  if (got == null) {
+    const err = RD.slug ? notRun(RD.slug, RDMODE === "ex" ? "e" : "p", RD.id) : null;
+    $("#rd-body").innerHTML = `<h4>${T("promptSent")}</h4><pre>${esc(promptFor(c, RDMODE === "ex"))}\n\n---\n${esc(c?.input ?? "")}</pre>`
+      + `<h4>${isFr() ? "Résultat du modèle" : "Model result"}</h4>`
+      + `<p class="note" style="margin-top:0">${err
+          ? (isFr() ? `<b>Jamais exécuté.</b> Le fournisseur a renvoyé ${esc(err)} sur ce cas en mode « ${T(RDMODE === "ex" ? "explained" : "plain")} ». Il n'y a pas de réponse à montrer, et ce cas ne devrait pas compter comme un échec du modèle.`
+                    : `<b>Never answered.</b> The provider returned ${esc(err)} for this case in ${T(RDMODE === "ex" ? "explained" : "plain")} mode. There is no reply to show, and this case should not count as a failure by the model.`)
+          : (isFr() ? `<b>Réponse non conservée.</b> Cette exécution n'a pas utilisé <code>--save-responses</code> pour le mode « ${T(RDMODE === "ex" ? "explained" : "plain")} » — seul le verdict est connu.`
+                    : `<b>Reply not kept.</b> This run did not use <code>--save-responses</code> for ${T(RDMODE === "ex" ? "explained" : "plain")} mode — only the verdict is on record.`)}</p>`
+      + `<h4>${T("expected")}</h4><pre>${esc(want)}</pre>`;
+    return;
+  }
+  if (RDTAB === "diff") {
+    // A correct JSON answer is usually emitted compact while `expected` is pretty-printed, so a raw line
+    // diff calls every line changed on a case the model got right. Re-print both the same way when the
+    // reply parses — whether it was compact or fenced is the `strict` axis's job, not this tab's.
+    let a = String(got ?? ""), b = want, normalised = false;
+    if (c?.to === "json") {
+      try { a = JSON.stringify(JSON.parse(a.trim()), null, 2); b = JSON.stringify(c.expected, null, 2); normalised = true; } catch {}
+    }
+    const rows = diffLines(a, b), same = rows.every((r) => r.t === " ");
+    $("#rd-body").innerHTML =
+      `<p class="hint" style="margin:0 0 9px">${isFr() ? "− ce que le modèle a produit · + ce qui était attendu" : "− what the model produced · + what was expected"}`
+      + `${normalised ? (isFr() ? " · les deux reformatés à l'identique" : " · both re-printed identically") : ""}</p>`
+      + (same ? `<p class="hint">${isFr() ? "identique — aucune différence" : "identical — no differences"}</p>` : "")
+      + `<pre class="diff">${rows.map((r) => `<span class="d${r.t === "+" ? "add" : r.t === "-" ? "del" : "same"}">${esc(r.t + " " + r.v)}</span>`).join("\n")}</pre>`;
+  } else {
+    $("#rd-body").innerHTML =
+      `<h4>${T("promptSent")}</h4><pre>${esc(promptFor(c, RDMODE === "ex"))}\n\n---\n${esc(c?.input ?? "")}</pre>`
+      + `<h4>${isFr() ? "Résultat du modèle" : "Model result"}</h4><pre>${esc(String(got ?? ""))}</pre>`
+      + `<h4>${T("expected")}</h4><pre>${esc(want)}</pre>`;
+  }
+}
+function renderReplyChrome() {
+  // Both modes are always offered, each carrying its own verdict. Hiding the mode that failed is
+  // exactly what made a ✗ in one column look like it contradicted a correct answer in the other.
+  const vmark = (v) => v == null ? `<span class="vb na">–</span>`
+    : v & 2 ? `<span class="vb ok">${v & 1 ? "✓✓" : "✓"}</span>` : `<span class="vb no">✗</span>`;
+  $("#rd-modes").innerHTML = ["plain", "ex"].map((m) =>
+    `<button class="btn tiny" data-mode="${m}" aria-pressed="${m === RDMODE}">`
+    + `${T(m === "ex" ? "explained" : "plain")} ${vmark(m === "ex" ? RD.ev : RD.pv)}</button>`).join("");
+  $("#rd-tabs").innerHTML = [["reply", isFr() ? "Réponse" : "Reply"], ["diff", "Diff"]]
+    .map(([k, l]) => `<button data-tab="${k}" aria-selected="${k === RDTAB}">${l}</button>`).join("");
+  $$("#rd-modes button").forEach((b) => b.onclick = () => { RDMODE = b.dataset.mode; renderReplyChrome(); renderReplyBody(); });
+  $$("#rd-tabs button").forEach((b) => b.onclick = () => { RDTAB = b.dataset.tab; renderReplyChrome(); renderReplyBody(); });
+}
+/** `mode` opens the dialog on the column that was clicked, so the reply matches the verdict beside it. */
+function showReply(key, mode) {
+  const r = REPLIES.get(key); if (!r) return;
+  RD = r;
+  RDMODE = mode ?? (r.plain != null ? "plain" : "ex");
+  RDTAB = "reply";
+  $("#rd-title").textContent = r.model; $("#rd-meta").textContent = r.id;
+  renderReplyChrome(); renderReplyBody(); dlg.showModal();
+}
+$("#rd-close").onclick = () => dlg.close();
+// Target identity, not pointer coordinates: a keyboard-activated click reports 0,0, which a coordinate
+// test reads as "outside" and closes the dialog under anyone navigating by keyboard.
+dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
+
+// ── model file access ──────────────────────────────────────────────────
+function modelRows(slug) {
+  if (!MODELCACHE.has(slug))
+    MODELCACHE.set(slug, fetch(`data/models/${slug}.json`).then((r) => r.json()).catch(() => null));
+  return MODELCACHE.get(slug);
+}
+
+// ── views ──────────────────────────────────────────────────────────────
+function show(v) {
+  // A model page has no tab of its own — it hangs off Models, so leave that tab marked.
+  const tab = v === "model" ? "models" : v;
+  $$("nav.tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.v === tab)));
+  $$(".view").forEach((s) => s.classList.toggle("on", s.id === `v-${v}`));
+  // A model page is its own headline; the site hero would push it a full screen down.
+  $(".hero").hidden = v === "model";
+}
+$$("nav.tabs button").forEach((b) => b.onclick = () => {
+  show(b.dataset.v);
+  if (b.dataset.v === "overview") drawOverview();
+  if (b.dataset.v === "models" && !$("#mgrid").children.length) renderModelGrid();
+  if (b.dataset.v === "cases" && !$("#ctree").children.length) ctApplySelection();
+});
+$("#mback").onclick = () => { show("models"); if (!$("#mgrid").children.length) renderModelGrid(); };
+
+// ══ score boards ═══════════════════════════════════════════════════════
+// One board per scope: the whole test set, each family of directions, and each of the nine
+// directions on its own. Every board carries its own model selection.
+
+const CASES_PER_DIR = Object.fromEntries(DIRS.map((d) => [d, CASES.filter((c) => `${c.from}>${c.to}` === d).length]));
+const TEXT_DIRS = DIRS.filter((d) => d.startsWith("text"));
+const FMT_DIRS = DIRS.filter((d) => !d.startsWith("text"));
+
+/** Weighted by case count — the directions are not the same size (300 vs 165), so a plain mean would lie. */
+function acrossDirs(m, mode, dirs) {
+  let num = 0, den = 0;
+  for (const d of dirs) {
+    const v = m[mode].dir[d];
+    if (v == null) continue;
+    num += v * CASES_PER_DIR[d]; den += CASES_PER_DIR[d];
+  }
+  return den ? Math.round(num / den) : null;
+}
+
+const BOARDS = [
+  { key: "all", host: "#sec-all", cases: CASES.length, lead: true,
+    en: "Global score", fr: "Score global",
+    dEn: "Task score over all 2,025 cases.", dFr: "Score task sur les 2 025 cas.",
+    score: (m, mode) => m[mode].task },
+  { key: "text", host: "#sec-text", cases: TEXT_DIRS.reduce((a, d) => a + CASES_PER_DIR[d], 0), group: TEXT_DIRS,
+    en: "Text → formats", fr: "Texte → formats",
+    dEn: "Writing structured data from plain-English field notes — the three text directions together.",
+    dFr: "Écrire des données structurées à partir de notes en clair — les trois directions texte réunies.",
+    score: (m, mode) => acrossDirs(m, mode, TEXT_DIRS) },
+  { key: "fmt", host: "#sec-fmt", cases: FMT_DIRS.reduce((a, d) => a + CASES_PER_DIR[d], 0), group: FMT_DIRS,
+    en: "Format → formats", fr: "Format → formats",
+    dEn: "Reformatting between structured formats — the six pairs among JSON, YAML and CSV.",
+    dFr: "Reformater entre formats structurés — les six paires parmi JSON, YAML et CSV.",
+    score: (m, mode) => acrossDirs(m, mode, FMT_DIRS) },
+  ...DIRS.map((d) => ({
+    key: d, dir: d, cases: CASES_PER_DIR[d], parent: d.startsWith("text") ? "text" : "fmt",
+    en: dirLabel(d), fr: dirLabel(d), dEn: "", dFr: "",
+    score: (m, mode) => m[mode].dir[d],
+  })),
+];
+const BOARD_BY_KEY = Object.fromEntries(BOARDS.map((b) => [b.key, b]));
+const SEL = new Map();                          // board key → { slugs: Set, preset: string }
+
+const bestOn = (b, m) => Math.max(b.score(m, "plain") ?? -1, b.score(m, "ex") ?? -1);
+const scored = (b) => BOARD.filter((m) => bestOn(b, m) >= 0);
+
+/**
+ * The default the page opens on: best and weakest, kept separate for hosted and local.
+ *
+ * A single "weakest" group is always the tiny local models — they own the bottom of every board — so
+ * the worst hosted model never appears. Splitting the floor by deployment makes both visible.
+ */
+function defaultPick(b, n = 5) {
+  const ranked = scored(b).sort((x, y) => bestOn(b, y) - bestOn(b, x));
+  const hostedAll = ranked.filter((m) => !m.local), localAll = ranked.filter((m) => m.local);
+  const hosted = hostedAll.slice(0, n), local = localAll.slice(0, n);
+  const taken = new Set([...hosted, ...local].map((m) => m.slug));
+  const worstHosted = [...hostedAll].reverse().filter((m) => !taken.has(m.slug)).slice(0, n);
+  const worstLocal = [...localAll].reverse().filter((m) => !taken.has(m.slug)).slice(0, n);
+  return { hosted, local, worstHosted, worstLocal };
+}
+function presetSlugs(b, preset) {
+  const ranked = scored(b).sort((x, y) => bestOn(b, y) - bestOn(b, x));
+  if (preset === "top10") return ranked.slice(0, 10).map((m) => m.slug);
+  if (preset === "bottom10") return ranked.slice(-10).map((m) => m.slug);
+  if (preset === "hosted") return ranked.filter((m) => !m.local).map((m) => m.slug);
+  if (preset === "local") return ranked.filter((m) => m.local).map((m) => m.slug);
+  if (preset === "all") return ranked.map((m) => m.slug);
+  const d = defaultPick(b);
+  return [...d.hosted, ...d.local, ...d.worstHosted, ...d.worstLocal].map((m) => m.slug);
+}
+function selOf(b) {
+  if (!SEL.has(b.key)) SEL.set(b.key, { preset: "default", slugs: new Set(presetSlugs(b, "default")) });
+  return SEL.get(b.key);
+}
+
+const PRESETS = [
+  ["default", { en: "best & weakest, hosted & local", fr: "meilleurs et plus faibles, hébergés et locaux" }],
+  ["top10", { en: "Top 10", fr: "Top 10" }],
+  ["bottom10", { en: "Bottom 10", fr: "10 derniers" }],
+  ["hosted", { en: "All hosted", fr: "Tous hébergés" }],
+  ["local", { en: "All local", fr: "Tous locaux" }],
+  ["all", { en: "All models", fr: "Tous les modèles" }],
+];
+const tp = (o) => o[LANG] ?? o.en;
+
+/** Rank on THIS board's metric — #1 is the best at csv→json, not the best overall. */
+function boardRanks(b) {
+  const r = new Map();
+  scored(b).sort((x, y) => bestOn(b, y) - bestOn(b, x)).forEach((m, i) => r.set(m.slug, i + 1));
+  return r;
+}
+
+/** One model row: rank, brand mark, name, plain/explained bars, green band at the average. */
+function boardRow(b, m, zone, ranks) {
+  const p = b.score(m, "plain"), e = b.score(m, "ex");
+  return `<div class="brow srow">
+    <button class="link mname" data-slug="${m.slug}" title="${esc(m.name)}">
+      <span class="srk">${ranks.get(m.slug) ?? "–"}</span>
+      ${mark(m, 20)}<span class="snm">${esc(m.model)}<span class="ssub">${esc(m.provider)} · ${esc(fmtSize(m))}</span></span>
+    </button>
+    <div class="btrack">
+      ${zone == null ? "" : `<span class="zone" style="width:${(100 - zone).toFixed(1)}%"></span>`}
+      <span class="bar p2" style="width:${Math.max(0, p ?? 0)}%"></span>
+      <span class="bar e2" style="width:${Math.max(0, e ?? 0)}%"></span>
+      <span class="vv">${p ?? "–"} · ${e ?? "–"}</span>
+    </div></div>`;
+}
+
+/** The numbered leaderboard under each board. Ranks are this board's, not the global ones. */
+function boardTable(b, list, ranks) {
+  const rows = [...list].sort((x, y) => bestOn(b, y) - bestOn(b, x));
+  if (!rows.length) return "";
+  return `<div class="btable"><table>
+    <thead><tr>
+      <th class="lft">#</th><th class="lft">${T("model")}</th><th>${T("size")}</th>
+      <th>${T("plain")}</th><th>${T("explained")}</th><th>${isFr() ? "meilleur" : "best"}</th>
+    </tr></thead><tbody>${rows.map((m) => `
+      <tr>
+        <td class="lft num" style="color:var(--muted)">${ranks.get(m.slug) ?? "–"}</td>
+        <td class="lft"><span class="mname">${mark(m, 18)}<button class="link" data-slug="${m.slug}">${esc(m.model)}</button>
+          <span class="sm">${esc(m.provider)}</span></span></td>
+        <td class="num" title="${esc(m.sizeLabel ?? "")}">${fmtSize(m)}${m.active ? "<sup>*</sup>" : ""}</td>
+        <td class="num">${b.score(m, "plain") ?? "–"}</td>
+        <td class="num">${b.score(m, "ex") ?? "–"}</td>
+        <td class="num">${chip(bestOn(b, m) < 0 ? null : bestOn(b, m))}</td>
+      </tr>`).join("")}</tbody></table></div>`;
+}
+
+/**
+ * Score against model size, per board. Selected models carry their brand mark and are clickable;
+ * everything else stays on as a faint dot so the shape of the whole field — and the frontier the
+ * selection sits on — is still visible.
+ */
+function drawBoardScatter(b, compact) {
+  const host = $(`[data-board="${b.key}"] .bscatter`);
+  if (!host) return;
+  host.innerHTML = "";
+  const pts = scored(b).filter((m) => m.params != null);
+  if (!pts.length) { host.innerHTML = `<p class="hint">${isFr() ? "aucune taille connue" : "no known sizes"}</p>`; return; }
+  const s = selOf(b);
+  const avail = host.clientWidth || (compact ? 460 : 900);
+  const W = Math.max(compact ? 420 : 520, Math.min(avail, 1160));
+  const H = compact ? 270 : 360, P = { l: 42, r: 16, t: 14, b: 38 };
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W > avail ? W : "100%", height: H, role: "img",
+                          "aria-label": `${isFr() ? b.fr : b.en} against model size` });
+  const xs = pts.map((p) => Math.log10(p.params));
+  const x0 = Math.floor(Math.min(...xs) * 2) / 2, x1 = Math.ceil(Math.max(...xs) * 2) / 2;
+  const X = (v) => P.l + ((Math.log10(v) - x0) / (x1 - x0 || 1)) * (W - P.l - P.r);
+  const Y = (v) => H - P.b - (v / 100) * (H - P.t - P.b);
+
+  const top = Math.max(...pts.map((m) => bestOn(b, m)));
+  const zone = Math.max(5, Math.floor(top * 0.9 / 5) * 5);
+  svg.append(el("rect", { x: P.l, y: Y(100), width: W - P.l - P.r, height: Y(zone) - Y(100),
+                          fill: `color-mix(in oklab, ${cssv("--good")} 11%, transparent)` }));
+  svg.append(el("line", { x1: P.l, x2: W - P.r, y1: Y(zone), y2: Y(zone), stroke: cssv("--good"),
+                          "stroke-width": 1.2, "stroke-dasharray": "5 4" }));
+  const zl = el("text", { x: P.l + 6, y: Y(zone) - 7, fill: cssv("--good"), "font-weight": "700",
+                          "paint-order": "stroke", stroke: cssv("--surface"), "stroke-width": "3px", "stroke-linejoin": "round" });
+  zl.textContent = `${T("bestZone")} ≥ ${zone}`; svg.append(zl);
+
+  for (let g = 0; g <= 100; g += 25) {
+    svg.append(el("line", { x1: P.l, x2: W - P.r, y1: Y(g), y2: Y(g), class: "gridline" }));
+    const t = el("text", { x: P.l - 6, y: Y(g) + 3, "text-anchor": "end" }); t.textContent = g; svg.append(t);
+  }
+  for (const tv of [100, 1000, 10000, 100000, 1000000].filter((v) => Math.log10(v) >= x0 && Math.log10(v) <= x1)) {
+    svg.append(el("line", { x1: X(tv), x2: X(tv), y1: P.t, y2: H - P.b, class: "gridline" }));
+    const t = el("text", { x: X(tv), y: H - P.b + 15, "text-anchor": "middle" });
+    t.textContent = tv >= 1e6 ? tv / 1e6 + "T" : tv >= 1000 ? tv / 1000 + "B" : tv + "M";
+    svg.append(t);
+  }
+  svg.append(el("line", { x1: P.l, x2: W - P.r, y1: H - P.b, y2: H - P.b, class: "axis" }));
+  svg.append(el("line", { x1: P.l, x2: P.l, y1: P.t, y2: H - P.b, class: "axis" }));
+  const yl = el("text", { transform: `translate(11,${(H - P.b + P.t) / 2}) rotate(-90)`, "text-anchor": "middle" });
+  yl.textContent = T("taskScore"); svg.append(yl);
+  const xl = el("text", { x: W - P.r, y: H - 5, "text-anchor": "end" }); xl.textContent = T("paramsLog"); svg.append(xl);
+
+  // Efficient frontier over the whole field: sweep small → large, keep anything nothing smaller beats.
+  const front = []; let high = -1;
+  for (const p of [...pts].sort((a, c) => a.params - c.params)) if (bestOn(b, p) > high) { high = bestOn(b, p); front.push(p); }
+  if (front.length > 1)
+    svg.append(el("polyline", { points: front.map((p) => `${X(p.params)},${Y(bestOn(b, p))}`).join(" "),
+                                fill: "none", stroke: cssv("--good"), "stroke-width": 2, "stroke-linejoin": "round", opacity: ".75" }));
+
+  for (const p of pts) if (!s.slugs.has(p.slug))
+    svg.append(el("circle", { cx: X(p.params), cy: Y(bestOn(b, p)), r: 3, fill: cssv("--muted"), opacity: ".35" }));
+
+  const glyph = compact ? 20 : 24;
+  for (const p of pts) {
+    if (!s.slugs.has(p.slug)) continue;
+    const g = el("g", { transform: `translate(${X(p.params) - glyph * .37},${Y(bestOn(b, p)) - glyph * .37}) scale(${(glyph * .75 / 24).toFixed(3)})`,
+                        style: "cursor:pointer" });
+    g.innerHTML = mark(p, 24);
+    hoverable(g, `<b>${esc(p.model)}</b><span class="r">${esc(p.provider)} · ${esc(p.sizeLabel)}`
+      + `${p.active ? ` (${esc(p.active)} active)` : ""}<br>${b.score(p, "plain") ?? "–"} ${T("plain")} · ${b.score(p, "ex") ?? "–"} ${T("explained")}</span>`);
+    g.onclick = () => openModel(p.slug);
+    svg.append(g);
+  }
+  host.append(svg);
+  host.insertAdjacentHTML("beforeend", `<div class="legend"><span class="hint">${isFr()
+    ? "↖ en haut à gauche c'est mieux · les points gris sont les modèles non sélectionnés"
+    : "↖ upper-left is better · grey dots are the models you have not selected"}</span></div>`);
+}
+
+function renderBoardBody(b) {
+  const root = $(`[data-board="${b.key}"]`);
+  const host = $(".bdy", root ?? document);
+  if (!root || !host) return;
+  const s = selOf(b);
+  const all = scored(b);
+  const ranks = boardRanks(b);
+  const zone = Math.round(all.reduce((a, m) => a + bestOn(b, m), 0) / (all.length || 1));
+  const chosen = all.filter((m) => s.slugs.has(m.slug));
+  const pick = (list) => list.filter((m) => s.slugs.has(m.slug));
+  let html = "";
+  if (s.preset === "default") {
+    const d = defaultPick(b);
+    const groups = [
+      [isFr() ? "5 meilleurs hébergés" : "5 best hosted", pick(d.hosted)],
+      [isFr() ? "5 meilleurs locaux" : "5 best local", pick(d.local)],
+      [isFr() ? "5 plus faibles hébergés" : "5 weakest hosted", pick(d.worstHosted)],
+      [isFr() ? "5 plus faibles locaux" : "5 weakest local", pick(d.worstLocal)],
+    ];
+    html = groups.filter(([, l]) => l.length).map(([label, list]) =>
+      `<div class="sgrp"><div class="sgrph">${esc(label)}</div>${list.map((m) => boardRow(b, m, zone, ranks)).join("")}</div>`).join("");
+  } else {
+    const list = [...chosen].sort((x, y) => bestOn(b, y) - bestOn(b, x));
+    html = list.length ? list.map((m) => boardRow(b, m, zone, ranks)).join("")
+                       : `<p class="hint">${isFr() ? "aucun modèle sélectionné" : "no models selected"}</p>`;
+  }
+  host.innerHTML = html + barLegend(isFr() ? `bande verte = au-dessus de la moyenne (${zone})`
+                                           : `green band = above the average (${zone})`);
+  $(".btable-host", root).innerHTML = boardTable(b, chosen, ranks);
+  drawBoardScatter(b, !!b.dir);        // a per-direction board gets the shorter chart
+  $$("button.link", root).forEach((x) => x.onclick = () => openModel(x.dataset.slug));
+  const cnt = $(".selcount", root);
+  if (cnt) cnt.textContent = `${s.slugs.size} ${s.slugs.size === 1 ? T("models") : T("modelsPl")}`;
+}
+
+/** The per-chart picker: presets, a search box and a checkbox per model. Built on first open. */
+function fillPicker(b) {
+  const wrap = $(`[data-board="${b.key}"] .mslist`);
+  if (!wrap || wrap.dataset.done) return;
+  wrap.dataset.done = "1";
+  const s = selOf(b);
+  wrap.innerHTML = scored(b).sort((x, y) => bestOn(b, y) - bestOn(b, x)).map((m) => `
+    <label class="msrow" data-name="${esc(m.name.toLowerCase())}">
+      <input type="checkbox" value="${m.slug}"${s.slugs.has(m.slug) ? " checked" : ""}>
+      ${mark(m, 18)}<span class="msnm">${esc(m.model)}</span>
+      <span class="mssc chip ${band(bestOn(b, m))}">${bestOn(b, m)}</span>
+    </label>`).join("");
+  wrap.onchange = (e) => {
+    const cb = e.target;
+    if (cb.type !== "checkbox") return;
+    s.preset = "custom";
+    cb.checked ? s.slugs.add(cb.value) : s.slugs.delete(cb.value);
+    $$(`[data-board="${b.key}"] .pbtn`).forEach((x) => x.setAttribute("aria-pressed", "false"));
+    renderBoardBody(b);
+  };
+}
+function syncPicker(b) {
+  const s = selOf(b);
+  $$(`[data-board="${b.key}"] .mslist input`).forEach((cb) => cb.checked = s.slugs.has(cb.value));
+}
+
+function boardCard(b, compact) {
+  const s = selOf(b);
+  const title = isFr() ? b.fr : b.en, desc = isFr() ? b.dFr : b.dEn;
+  return `<div class="card sboard${compact ? " compact" : ""}" data-board="${esc(b.key)}" style="margin-top:0">
+    <h2>${esc(title)}<span class="ccount">${b.cases} ${T("casesPl")}</span></h2>
+    ${desc ? `<p class="sub">${esc(desc)}</p>` : ""}
+    <div class="body">
+      <div class="controls pk">
+        ${PRESETS.map(([k, l]) => `<button class="btn tiny pbtn" data-preset="${k}" aria-pressed="${s.preset === k}">${esc(tp(l))}</button>`).join("")}
+        <details class="mspick"><summary>${isFr() ? "Choisir les modèles" : "Pick models"} <span class="selcount"></span></summary>
+          <div class="mspanel">
+            <input type="search" class="msq" placeholder="${isFr() ? "Filtrer…" : "Filter…"}" aria-label="Filter models">
+            <div class="msbtns">
+              <button class="btn tiny" data-msall="1">${isFr() ? "Tout cocher" : "Check all"}</button>
+              <button class="btn tiny" data-msnone="1">${isFr() ? "Tout décocher" : "Uncheck all"}</button>
+            </div>
+            <div class="mslist"></div>
+          </div></details>
+      </div>
+      <div class="bscatter"></div>
+      <div class="bdy"></div>
+      <div class="btable-host"></div>
+    </div></div>`;
+}
+
+function wireBoard(b) {
+  const root = $(`[data-board="${b.key}"]`);
+  if (!root) return;
+  $$(".pbtn", root).forEach((btn) => btn.onclick = () => {
+    const s = selOf(b);
+    s.preset = btn.dataset.preset;
+    s.slugs = new Set(presetSlugs(b, s.preset));
+    $$(".pbtn", root).forEach((x) => x.setAttribute("aria-pressed", String(x === btn)));
+    syncPicker(b);
+    renderBoardBody(b);
+  });
+  const det = $(".mspick", root);
+  det.addEventListener("toggle", () => { if (det.open) fillPicker(b); });
+  $(".msq", root).oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    $$(".msrow", root).forEach((r) => r.hidden = !!q && !r.dataset.name.includes(q));
+  };
+  $("[data-msall]", root).onclick = () => {
+    const s = selOf(b); s.preset = "custom";
+    // Honour the search box: "check all" means all the rows you can currently see.
+    const vis = $$(".msrow", root).filter((r) => !r.hidden);
+    (vis.length ? vis : $$(".msrow", root)).forEach((r) => s.slugs.add($("input", r).value));
+    $$(".pbtn", root).forEach((x) => x.setAttribute("aria-pressed", "false"));
+    syncPicker(b); renderBoardBody(b);
+  };
+  $("[data-msnone]", root).onclick = () => {
+    const s = selOf(b); s.preset = "custom"; s.slugs.clear();
+    $$(".pbtn", root).forEach((x) => x.setAttribute("aria-pressed", "false"));
+    syncPicker(b); renderBoardBody(b);
+  };
+}
+
+/**
+ * Three sections: the whole test set, then one per family of directions. A family's own board comes
+ * first, then a sub-section per direction underneath it — full width, one per row, each a disclosure
+ * whose closed summary still carries the numbers, so the page stays readable at twelve boards.
+ */
+function drawBoards() {
+  const secs = [
+    { key: "all", n: 1, en: "The whole test set", fr: "L'ensemble du jeu de test" },
+    { key: "text", n: 2, en: "Writing structured data from text", fr: "Écrire des données structurées à partir de texte" },
+    { key: "fmt", n: 3, en: "Reformatting between structured formats", fr: "Reformater entre formats structurés" },
+  ];
+  for (const sec of secs) {
+    const b = BOARD_BY_KEY[sec.key];
+    const kids = BOARDS.filter((x) => x.parent === sec.key);
+    $(b.host).innerHTML =
+      `<div class="sechd">
+         <span class="secn">${sec.n}</span>
+         <span class="sect">${esc(isFr() ? sec.fr : sec.en)}</span>
+         <span class="secr"></span>
+         ${kids.length ? `<button class="btn tiny secall" data-sec="${sec.key}">${T("openAllDirs")}</button>` : ""}
+       </div>`
+      + boardCard(b, false)
+      + (kids.length ? `<div class="subs">${kids.map((k) => subSection(k)).join("")}</div>` : "");
+    wireBoard(b); renderBoardBody(b);
+    for (const k of kids) wireSub(k);
+    const all = $(`.secall[data-sec="${sec.key}"]`, $(b.host));
+    if (all) all.onclick = () => {
+      const subs = $$(`.subs > details`, $(b.host));
+      const open = subs.some((d) => !d.open);
+      subs.forEach((d) => d.open = open);
+      all.textContent = open ? T("closeAllDirs") : T("openAllDirs");
+    };
+  }
+}
+
+/** A direction's sub-section. Closed, its summary is still a data row; opened, it builds its board. */
+function subSection(k) {
+  const all = scored(k);
+  const top = all.slice().sort((x, y) => bestOn(k, y) - bestOn(k, x))[0];
+  const avg = Math.round(all.reduce((a, m) => a + bestOn(k, m), 0) / (all.length || 1));
+  return `<details class="sub" data-sub="${esc(k.key)}">
+    <summary>
+      <span class="subnm">${k.dir.split(">")[0]}<span class="ar"> → </span>${k.dir.split(">")[1]}</span>
+      <span class="subst">${k.cases} ${T("casesPl")}</span>
+      <span class="subst">${isFr() ? "moyenne" : "average"} ${chip(avg)}</span>
+      <span class="subst best">${isFr() ? "meilleur" : "best"} ${top ? `${mark(top, 16)} ${esc(top.model)} ${chip(bestOn(k, top))}` : "–"}</span>
+    </summary>
+    <div class="subbody"></div></details>`;
+}
+
+function wireSub(k) {
+  const det = $(`details[data-sub="${CSS.escape(k.key)}"]`);
+  if (!det) return;
+  det.addEventListener("toggle", () => {
+    if (!det.open || det.dataset.built) return;
+    det.dataset.built = "1";
+    $(".subbody", det).innerHTML = boardCard(k, false);
+    wireBoard(k); renderBoardBody(k);
+  });
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+const el = (t, a = {}) => { const n = document.createElementNS(SVG, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
+
+
+function drawAxisCharts() {
+  // direction — sorted hardest first, green band above the fleet mean
+  const dm = avgOf(best);
+  $("#bydir").innerHTML = DIRS.map((d) => ({ d, p: avg((m) => m.plain.dir[d]), e: avg((m) => m.ex.dir[d]) }))
+    .sort((a, b) => Math.max(a.p, a.e) - Math.max(b.p, b.e))
+    .map((r) => brow({ label: dirLabel(r.d), p: Math.round(r.p), e: Math.round(r.e), zone: Math.round(dm) })).join("")
+    + barLegend(ZONE_FLEET());
+
+  $("#bylvl").innerHTML = META.levels
+    .map((l) => brow({ label: `L${l.n} · ${tLvlLabel(l.n, l.label)}`, p: Math.round(avg((m) => m.plain.level[l.n])),
+                       e: Math.round(avg((m) => m.ex.level[l.n])), zone: Math.round(dm) })).join("") + barLegend(ZONE_FLEET());
+
+  $("#bydom").innerHTML = META.domains
+    .map((d) => ({ d, p: avg((m) => m.plain.domain[d]), e: avg((m) => m.ex.domain[d]) }))
+    .sort((a, b) => Math.max(b.p, b.e) - Math.max(a.p, a.e))
+    .map((r) => brow({ label: tDom(r.d), key: isFr() ? r.d : "", p: Math.round(r.p), e: Math.round(r.e), zone: Math.round(dm) })).join("")
+    + barLegend(ZONE_FLEET());
+}
+const avg = (pick) => { const v = BOARD.map(pick).filter((x) => x != null); return v.reduce((a, b) => a + b, 0) / (v.length || 1); };
+
+function drawDelta() {
+  const host = $("#delta"); host.innerHTML = "";
+  const data = [...BOARD].filter((m) => m.delta !== 0).sort((a, b) => b.delta - a.delta);
+  if (!data.length) { host.innerHTML = `<p class="hint">no deltas</p>`; return; }
+  const W = Math.min(host.clientWidth || 900, 1160), bw = Math.max(4, Math.min(18, (W - 60) / data.length));
+  const H = 250, mid = H / 2, span = Math.max(...data.map((d) => Math.abs(d.delta))) || 1;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, role: "img",
+                          "aria-label": "Change in task score from the worked example, per model" });
+  // The whole "helped" half is the green region — the chart's own good zone.
+  svg.append(el("rect", { x: 30, y: 0, width: W - 38, height: mid,
+                          fill: `color-mix(in oklab, ${cssv("--good")} 9%, transparent)` }));
+  svg.append(el("line", { x1: 30, x2: W - 8, y1: mid, y2: mid, class: "axis" }));
+  data.forEach((d, i) => {
+    const h = (Math.abs(d.delta) / span) * (mid - 26), x = 34 + i * bw;
+    const r = el("rect", { x, y: d.delta > 0 ? mid - h : mid, width: Math.max(2, bw - 2),
+                           height: Math.max(1.5, h), rx: 2,
+                           fill: d.delta > 0 ? cssv("--good") : cssv("--bad"), style: "cursor:pointer" });
+    hoverable(r, `<b>${esc(d.model)}</b><span class="r">${d.delta > 0 ? "+" : ""}${d.delta} ${isFr() ? "pts avec l'exemple" : "pts with the example"}<br>`
+      + `${d.plain.task} ${T("plain")} → ${d.ex.task} ${T("explained")}</span>`);
+    r.onclick = () => openModel(d.slug);
+    svg.append(r);
+  });
+  const up = el("text", { x: 4, y: 14, fill: cssv("--good") }); up.textContent = T("helped"); svg.append(up);
+  const dn = el("text", { x: 4, y: H - 6, fill: cssv("--bad") }); dn.textContent = T("hurt"); svg.append(dn);
+  host.append(svg);
+  const nHelp = data.filter((d) => d.delta > 0).length;
+  host.insertAdjacentHTML("beforeend",
+    `<p class="hint" style="margin-top:8px">${nHelp} ${T("helped")} · ${data.length - nHelp} ${T("hurt")} · ${BOARD.length - data.length} ${T("unchanged")}</p>`);
+}
+
+let overviewDrawn = false;
+function drawOverview() { drawBoards(); drawAxisCharts(); drawDelta(); overviewDrawn = true; }
+addEventListener("resize", () => {
+  // Charts bake pixel widths in, so a resize has to repaint them; the boards redraw their own scatters.
+  if (overviewDrawn && $("#v-overview").classList.contains("on")) { for (const b of BOARDS) if ($(`[data-board="${b.key}"]`)) drawBoardScatter(b, !!b.dir); drawDelta(); }
+});
+
+// ══ model grid ═════════════════════════════════════════════════════════
+let mFilter = "all";
+function renderModelGrid() {
+  const q = $("#mq").value.trim().toLowerCase(), how = $("#msort").value;
+  let list = BOARD.filter((m) => (mFilter === "all" || (mFilter === "local") === m.local) && (!q || m.name.toLowerCase().includes(q)));
+  const by = { best: (a, b) => best(b) - best(a), delta: (a, b) => b.delta - a.delta,
+               size: (a, b) => (b.params ?? -1) - (a.params ?? -1), small: (a, b) => (a.params ?? 1e12) - (b.params ?? 1e12),
+               name: (a, b) => a.name.localeCompare(b.name) };
+  list = [...list].sort(by[how]);
+  $("#mcount").textContent = `${list.length} ${list.length === 1 ? T("models") : T("modelsPl")}`;
+  $("#mgrid").innerHTML = list.map((m) => `
+    <button class="mcard" data-slug="${m.slug}">
+      <div class="top">${mark(m, 30)}
+        <div style="min-width:0"><div class="nm">${esc(m.model)}</div><div class="pv">${esc(m.provider)}</div></div>
+        <div class="rk">#${RANK.get(m.slug)}</div></div>
+      <div class="btrack"><span class="zone" style="width:${(100 - Math.round(FLEET.task)).toFixed(1)}%"></span>
+        <span class="bar" style="width:${best(m)}%;background:${best(m) >= FLEET.task ? "var(--good)" : "var(--sp)"}"></span>
+        <span class="vv">${best(m)}</span></div>
+      <div class="foot">
+        <span class="pill ${m.local ? "local" : "hosted"}">${m.local ? T("local") : T("hosted")}</span>
+        <span class="hint">${esc(fmtSize(m))}${m.active ? ` · ${esc(m.active)}` : ""}</span>
+        <span class="hint ${m.delta > 0 ? "up" : m.delta < 0 ? "down" : ""}">Δ ${m.delta > 0 ? "+" : ""}${m.delta}</span>
+      </div>
+    </button>`).join("");
+  $$("#mgrid .mcard").forEach((b) => b.onclick = () => openModel(b.dataset.slug));
+}
+$("#mq").oninput = renderModelGrid;
+$("#msort").onchange = renderModelGrid;
+$$("#v-models .seg button").forEach((b) => b.onclick = () => {
+  mFilter = b.dataset.f;
+  $$("#v-models .seg button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  renderModelGrid();
+});
+
+// ══ one model ══════════════════════════════════════════════════════════
+let CURMODEL = null;
+async function openModel(slug) {
+  const m = BOARD.find((x) => x.slug === slug); if (!m) return;
+  CURMODEL = m;
+  show("model");
+  scrollTo({ top: 0 });
+  renderModelPage(m);
+  const d = await modelRows(slug);
+  if (CURMODEL === m) renderModelTree(m, d?.rows ?? []);
+}
+
+function renderModelPage(m) {
+  const gap = m.plain.task - m.plain.strict;
+  const dirRows = (list) => list.map((d) => brow({
+    label: dirLabel(d), p: m.plain.dir[d], e: m.ex.dir[d], zone: Math.round(FLEET.dir[d]),
+  })).join("");
+  // Where this model beats and trails the fleet, on every axis at once.
+  const gaps = [
+    ...DIRS.map((d) => ({ what: dirLabel(d), v: Math.max(m.plain.dir[d] ?? -1, m.ex.dir[d] ?? -1) - FLEET.dir[d], s: Math.max(m.plain.dir[d] ?? 0, m.ex.dir[d] ?? 0) })),
+    ...META.challenges.map((c) => ({ what: tChal(c.key), v: Math.max(m.plain.challenge[c.key] ?? -1, m.ex.challenge[c.key] ?? -1) - FLEET.challenge[c.key], s: Math.max(m.plain.challenge[c.key] ?? 0, m.ex.challenge[c.key] ?? 0) })),
+  ].sort((a, b) => b.v - a.v);
+
+  $("#mpage").innerHTML = `
+    <div class="card"><div class="body">
+      <div class="mhead">
+        ${mark(m, 44)}
+        <div style="min-width:0;flex:1 1 260px">
+          <h2>${esc(m.model)}</h2>
+          <div class="kv" style="margin:8px 0 0">
+            <span class="pill">${esc(m.provider)}</span>
+            <span class="pill ${m.local ? "local" : "hosted"}">${m.local ? T("local") : T("hosted")}</span>
+            <span class="pill">${T("rank")} #${RANK.get(m.slug)} / ${BOARD.length}</span>
+            <span class="pill">${esc(fmtSize(m))}${m.active ? ` · ${esc(m.active)} active` : ""}</span>
+            <span class="pill">${T("enumEx")} ${m.plain.noEnum}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="statgrid">
+        <div class="sbox"><div class="k">${T("plain")} · task</div><div class="v ${band(m.plain.task)}">${m.plain.task}</div><div class="u">${T("correctAnywhere")}</div></div>
+        <div class="sbox"><div class="k">${T("plain")} · strict</div><div class="v ${band(m.plain.strict)}">${m.plain.strict}</div><div class="u">${T("onlyTheValue")}</div></div>
+        <div class="sbox"><div class="k">${T("explained")} · task</div><div class="v ${band(m.ex.task)}">${m.ex.task}</div><div class="u">${T("withDemo")}</div></div>
+        <div class="sbox"><div class="k">${T("explained")} · strict</div><div class="v ${band(m.ex.strict)}">${m.ex.strict}</div><div class="u">${T("withDemo")}</div></div>
+        <div class="sbox sec"><div class="k">${T("demoLift")}</div><div class="v ${m.delta > 0 ? "hi" : m.delta < 0 ? "lo" : "na"}" style="font-size:21px">${m.delta > 0 ? "+" : ""}${m.delta}</div><div class="u">${T("explained")} − ${T("plain")}</div></div>
+        <div class="sbox sec"><div class="k">${T("instrGap")}</div><div class="v" style="font-size:21px">${gap}</div><div class="u">${T("gapNote")}</div></div>
+      </div>
+
+      <div class="callout">
+        <div class="co"><div class="k">${T("bestAt")}</div><div class="v">${esc(gaps[0].what)} · ${Math.round(gaps[0].s)}</div>
+          <div class="hint">${gaps[0].v > 0 ? "+" : ""}${gaps[0].v.toFixed(0)} ${isFr() ? "vs le parc" : "vs the fleet"}</div></div>
+        <div class="co bad"><div class="k">${T("worstAt")}</div><div class="v">${esc(gaps[gaps.length - 1].what)} · ${Math.round(gaps[gaps.length - 1].s)}</div>
+          <div class="hint">${gaps[gaps.length - 1].v > 0 ? "+" : ""}${gaps[gaps.length - 1].v.toFixed(0)} ${isFr() ? "vs le parc" : "vs the fleet"}</div></div>
+      </div>
+    </div></div>
+
+    <div class="card">
+      <h2>${T("byDirection")}</h2>
+      <p class="sub">${isFr() ? "Score task par direction. La bande verte est la moyenne du parc." : "Task score per direction. The green band is the fleet average."}</p>
+      <div class="body">
+        <h3 class="eyebrow" style="margin-bottom:8px">${isFr() ? "Texte → formats" : "Text → formats"}</h3>
+        ${dirRows(DIRS.filter((d) => d.startsWith("text")))}
+        <h3 class="eyebrow" style="margin:16px 0 8px">${isFr() ? "Format → formats" : "Format → formats"}</h3>
+        ${dirRows(DIRS.filter((d) => !d.startsWith("text")))}
+        ${barLegend(ZONE_FLEET())}
+      </div>
+    </div>
+
+    <div class="cols2" style="margin-top:20px">
+      <div class="card" style="margin-top:0"><h2>${T("byLevel")}</h2><div class="body">
+        ${META.levels.map((l) => brow({ label: `L${l.n} · ${tLvlLabel(l.n, l.label)}`, p: m.plain.level[l.n], e: m.ex.level[l.n], zone: Math.round(FLEET.level[l.n]) })).join("")}
+        ${barLegend(ZONE_FLEET())}</div></div>
+      <div class="card" style="margin-top:0"><h2>${T("byDomain")}</h2><div class="body">
+        ${META.domains.map((d) => brow({ label: tDom(d), key: isFr() ? d : "", p: m.plain.domain[d], e: m.ex.domain[d], zone: Math.round(FLEET.domain[d]) })).join("")}
+        ${barLegend(ZONE_FLEET())}</div></div>
+    </div>
+
+    <div class="card"><h2>${T("byConstraint")}</h2>
+      <p class="sub">${isFr() ? "Chaque contrainte est une consigne indépendante à respecter en reformatant." : "Each constraint is an independent instruction to honour while reformatting."}</p>
+      <div class="body">
+        ${META.challenges.map((c) => brow({ label: tChal(c.key), key: isFr() ? c.key : "", p: m.plain.challenge[c.key], e: m.ex.challenge[c.key], zone: Math.round(FLEET.challenge[c.key]) })).join("")}
+        ${barLegend(ZONE_FLEET())}</div></div>
+
+    <div class="card"><h2>${T("howAsked")}</h2>
+      <p class="sub">${isFr() ? "Chaque cas est posé deux fois — d'abord les consignes seules, puis avec un exemple résolu ajouté devant. Même entrée, même instruction finale."
+                              : "Every case is asked twice — the instructions alone, then with a worked example prepended. Same input, same closing instruction."}</p>
+      <div class="body grid2" id="askdemo"></div></div>
+
+    <div class="card"><h2>${T("everyTest")}</h2>
+      <p class="sub">${isFr() ? "<b>P</b> = simple, <b>E</b> = avec exemple ; premier point = task, second = strict. Ouvrez une direction, puis un niveau, puis un cas."
+                              : "<b>P</b> = plain, <b>E</b> = explained; first dot = task, second = strict. Open a direction, then a level, then a case."}</p>
+      <div class="body"><div id="mtree" class="hint">${T("loading")}</div></div></div>`;
+
+  // "How it was asked" — the two prompts, side by side, on this model's first case.
+  const demoCase = CASES[0];
+  $("#askdemo").innerHTML = ["plain", "ex"].map((mode) => `
+    <div class="mini"><div class="mh"><span>${mode === "ex" ? T("explained") : T("plain")} · system</span>
+      <span class="hint">${demoCase.id}</span></div>
+      <pre>${esc(promptFor(demoCase, mode === "ex"))}</pre></div>`).join("");
+}
+
+/** Direction › level › case accordions for one model, filled lazily as each level is opened. */
+function renderModelTree(m, rows) {
+  const byCase = new Map(rows.map((r) => [r.id, r]));
+  const host = $("#mtree"); host.innerHTML = "";
+  const dot = (v, bit) => v == null ? `<span class="dot na" title="${isFr() ? "jamais exécuté" : "never answered"}">·</span>`
+    : `<span class="dot ${v & bit ? "ok" : "no"}">${v & bit ? "✓" : "✗"}</span>`;
+  const vp = (c) => verdictOf(m.slug, "p", c.id, byCase.get(c.id)?.p);
+  const ve = (c) => verdictOf(m.slug, "e", c.id, byCase.get(c.id)?.e);
+
+  for (const d of DIRS) {
+    const inDir = CASES.filter((c) => `${c.from}>${c.to}` === d);
+    if (!inDir.length) continue;
+    const acc = document.createElement("details");
+    acc.className = "acc";
+    acc.innerHTML = `<summary>
+        <span class="accnm">${d.split(">")[0]}<span class="ar"> → </span>${d.split(">")[1]}</span>
+        <span class="accsub">${inDir.length} ${T("casesPl")} · task ${m.plain.dir[d] ?? "–"} / ${m.ex.dir[d] ?? "–"}</span>
+      </summary><div class="accbody"></div>`;
+    const body = acc.querySelector(".accbody");
+    const levels = [...new Set(inDir.map((c) => c.level))].sort((a, b) => a - b);
+    body.innerHTML = levels.map((L) => {
+      const inLvl = inDir.filter((c) => c.level === L);
+      const hit = inLvl.filter((c) => (vp(c) ?? 0) & 2 || (ve(c) ?? 0) & 2).length;
+      return `<details class="lvl" data-dir="${d}" data-lvl="${L}">
+        <summary><span class="lvlnm">L${L} · ${esc(tLvlLabel(L, META.levels.find((x) => x.n === L)?.label ?? ""))}</span>
+          <span class="accsub">${inLvl.length} ${T("casesPl")} · ${hit}/${inLvl.length} ${isFr() ? "réussis" : "solved"}</span></summary>
+        <div class="lvlbody"><span class="hint">${T("loading")}</span></div></details>`;
+    }).join("");
+    host.append(acc);
+  }
+
+  // Fill a level's cases on first open — 2 025 case blocks up front would be a wasted render.
+  host.addEventListener("toggle", (e) => {
+    const det = e.target;
+    if (!det.matches("details.lvl") || !det.open || det.dataset.done) return;
+    det.dataset.done = "1";
+    const inLvl = CASES.filter((c) => `${c.from}>${c.to}` === det.dataset.dir && String(c.level) === det.dataset.lvl);
+    det.querySelector(".lvlbody").innerHTML = inLvl.map((c) => {
+      const r = byCase.get(c.id);
+      return `<details class="tst">
+        <summary>
+          <span class="tid">${c.id}</span>
+          <span class="tdesc"><span class="frm">${c.from}<span class="ar">→</span>${c.to}</span>
+            <span class="lv">L${c.level} · ${esc(tDom(c.domain))}</span>
+            ${c.challenges.map((x) => `<span class="chl" title="${esc(x)}">${esc(tChal(x))}</span>`).join("")}</span>
+          <span class="dots">
+            <span class="dgroup"><span class="gl2">P</span>${dot(vp(c), 2)}${dot(vp(c), 1)}</span>
+            <span class="dgroup"><span class="gl2">E</span>${dot(ve(c), 2)}${dot(ve(c), 1)}</span></span>
+        </summary>
+        <div class="tstbody">${caseBody(c, r, m)}</div></details>`;
+    }).join("");
+    wireCaseBodies(det);
+  }, true);
+}
+
+/** ✓✓ task+strict, ✓ task only, ✗ neither, – never answered. */
+const verdictBadges = (v) => v == null
+  ? `<span class="vb na">task –</span><span class="vb na">strict –</span>`
+  : `<span class="vb ${v & 2 ? "ok" : "no"}">task ${v & 2 ? "✓" : "✗"}</span>`
+    + `<span class="vb ${v & 1 ? "ok" : "no"}">strict ${v & 1 ? "✓" : "✗"}</span>`;
+
+/**
+ * What the model actually replied, one panel per prompt mode.
+ *
+ * Three states, and they are different things: a reply on record; a case the provider never answered
+ * (an error, not a wrong answer); and a run made without `--save-responses`, where the verdict is
+ * known but the text was thrown away. Say which one it is rather than showing an empty box.
+ */
+function replyPanels(c, row, m) {
+  return `<div class="grid2">${["p", "e"].map((k) => {
+    const text = k === "p" ? row?.pr : row?.er;
+    const err = m ? notRun(m.slug, k, c.id) : null;
+    const v = err ? null : (k === "p" ? row?.p : row?.e);
+    let body;
+    if (err) {
+      body = `<p class="hint norec">${isFr()
+        ? `jamais exécuté — le fournisseur a renvoyé ${esc(err)}, donc ce cas n'a pas de réponse et ne compte pas comme un échec du modèle`
+        : `never answered — the provider returned ${esc(err)}, so this case has no reply and is not the model's failure`}</p>`;
+    } else if (text != null) {
+      body = `<pre>${esc(text)}</pre>`;
+    } else {
+      body = `<p class="hint norec">${isFr()
+        ? "réponse non conservée — cette exécution n'a pas utilisé --save-responses, seul le verdict est connu"
+        : "reply not kept — this run did not use --save-responses, so only the verdict is on record"}</p>`;
+    }
+    return `<div class="mini reply${err ? " err" : ""}"><div class="mh">
+        <span>${isFr() ? "Réponse" : "Reply"} · ${k === "p" ? T("plain") : T("explained")}</span>
+        <span class="vbs">${err ? `<span class="vb na">${esc(err)}</span>` : verdictBadges(v)}</span></div>
+      ${body}</div>`;
+  }).join("")}</div>`;
+}
+
+/** The stacked body of one case: prompt, input, expected — plus this model's reply when there is one. */
+function caseBody(c, row, m) {
+  const n = solved(c.id), s = CSTAT.stat[c.id] ?? [0, 0, 0, 0, 0];
+  const key = `${c.id}|${m?.slug ?? "-"}`;
+  const has = !!row && (row.pr != null || row.er != null);
+  if (has) REPLIES.set(key, { model: m?.model ?? "", id: c.id, plain: row.pr ?? null, ex: row.er ?? null });
+  return `
+    <div class="mini"><div class="mh"><span>${T("input")} · ${c.from}</span>
+      <span class="hint">${T("solvedBy")} ${n}/${NM}</span></div>
+      <pre>${esc(c.input)}</pre>
+      <div class="hint" style="padding:0 10px 9px;white-space:pre-wrap">${esc(c.instructions)}</div></div>
+    <div class="grid2">
+      <div class="mini"><div class="mh"><span>${T("expected")} · ${c.to}</span></div><pre>${esc(pretty(c.expected))}</pre></div>
+      <div class="mini"><div class="mh"><span>${T("promptSent")}</span></div><pre>${esc(promptFor(c, false))}</pre></div>
+    </div>
+    ${m ? replyPanels(c, row, m) : ""}
+    <div>${["p", "e"].map((k, i) => brow({
+      label: `${k === "p" ? T("plain") : T("explained")} · task`,
+      p: Math.round(s[i * 2] / NM * 100), zone: null,
+    })).join("")}
+      <p class="hint">${isFr() ? "part des modèles ayant réussi ce cas, en %" : "share of models that got this case right, in %"}</p></div>
+    ${has ? `<div><button class="btn tiny" data-reply="${key}">${T("viewReply")}</button></div>` : ""}
+    ${m ? `<div><button class="btn tiny" data-open-case="${c.id}">${isFr() ? "Voir tous les modèles sur ce cas" : "See every model on this case"}</button></div>` : ""}`;
+}
+function wireCaseBodies(scope) {
+  $$("[data-reply]", scope).forEach((b) => b.onclick = () => showReply(b.dataset.reply));
+  $$("[data-open-case]", scope).forEach((b) => b.onclick = () => openCase(b.dataset.openCase));
+}
+
+// ══ all cases: a matrix of cases × chosen models ════════════════════════
+// Grouped (direction › level › case) or one flat list of every case. Either way the selected models
+// form a column of squares that reads the same on a case row (pass/fail) and on a group header
+// (that model's pass rate for the group).
+
+const CT = { mode: "grouped", sel: new Set(), verdicts: new Map(), rendered: 0, gen: 0 };
+
+/** Rank order, so a model keeps the same column position everywhere on the page. */
+const ctModels = () => BOARD.filter((m) => CT.sel.has(m.slug)).sort((a, b) => RANK.get(a.slug) - RANK.get(b.slug));
+
+function ctPreset(name) {
+  const ranked = [...BOARD].sort((a, b) => RANK.get(a.slug) - RANK.get(b.slug));
+  if (name === "none") return [];
+  if (name === "mix") return [...ranked.filter((m) => !m.local).slice(0, 3), ...ranked.filter((m) => m.local).slice(0, 2)].map((m) => m.slug);
+  return ranked.slice(0, 5).map((m) => m.slug);
+}
+CT.sel = new Set(ctPreset("mix"));
+
+/** Load the per-case rows for whatever is selected. Only the selected models are fetched. */
+async function ctLoad() {
+  const want = ctModels();
+  await Promise.all(want.map(async (m) => {
+    if (CT.verdicts.has(m.slug)) return;
+    const d = await modelRows(m.slug);
+    CT.verdicts.set(m.slug, new Map((d?.rows ?? []).map((r) => [r.id, r])));
+  }));
+}
+
+function ctFilter() {
+  const dir = $("#c-dir").value, lvl = $("#c-lvl").value, dom = $("#c-dom").value,
+        ch = $("#c-chal").value, sv = $("#c-solve").value, q = $("#c-q").value.trim().toLowerCase();
+  return CASES.filter((c) => {
+    if (dir && `${c.from}>${c.to}` !== dir) return false;
+    if (lvl && String(c.level) !== lvl) return false;
+    if (dom && c.domain !== dom) return false;
+    if (ch && !c.challenges.includes(ch)) return false;
+    if (q && !(c.id.includes(q) || c.input.toLowerCase().includes(q))) return false;
+    if (sv) {
+      const n = solved(c.id);
+      if (sv === "none" && n !== 0) return false;
+      if (sv === "hard" && n >= NM / 3) return false;
+      if (sv === "easy" && n < NM * 0.8) return false;
+    }
+    return true;
+  });
+}
+
+/** A case row's strip: one square per selected model, pass or miss on the better of the two modes. */
+function ctCaseStrip(id) {
+  return `<span class="strip" data-strip-case="${id}">${ctModels().map((m) => {
+    const r = CT.verdicts.get(m.slug)?.get(id);
+    const p = verdictOf(m.slug, "p", id, r?.p), e = verdictOf(m.slug, "e", id, r?.e);
+    const ran = r && (p != null || e != null);
+    const cls = !ran ? "na" : ((p ?? 0) & 2 || (e ?? 0) & 2) ? "ok" : "no";
+    return `<span class="sq ${cls}" data-m="${m.slug}" data-id="${id}"></span>`;
+  }).join("")}</span>`;
+}
+/** A group header's strip: the same squares, but banded by each model's pass rate over the group. */
+function ctGroupStrip(list) {
+  return `<span class="strip" data-strip-group="1">${ctModels().map((m) => {
+    const v = CT.verdicts.get(m.slug);
+    if (!v) return `<span class="sq na" data-m="${m.slug}"></span>`;
+    let hit = 0, seen = 0;
+    for (const c of list) {
+      const r = v.get(c.id);
+      if (!r) continue;
+      const p = verdictOf(m.slug, "p", c.id, r.p), e = verdictOf(m.slug, "e", c.id, r.e);
+      if (p == null && e == null) continue;      // never answered — out of the denominator, not a miss
+      seen++;
+      if ((p ?? 0) & 2 || (e ?? 0) & 2) hit++;
+    }
+    const pct = seen ? Math.round(hit / seen * 100) : null;
+    return `<span class="sq ${band(pct)}" data-m="${m.slug}" data-rate="${pct ?? ""}" data-n="${seen}"></span>`;
+  }).join("")}</span>`;
+}
+const ctMeter = (n, total) => `<span class="meter"><span class="mt"><span class="mf" style="width:${(n / total * 100).toFixed(1)}%"></span></span><span class="mn">${Math.round(n / total * 100)}%</span></span>`;
+const groupSolved = (list) => list.reduce((a, c) => a + solved(c.id), 0);
+
+function ctCaseRow(c) {
+  const n = solved(c.id);
+  return `<details class="tst" id="case-${c.id}">
+    <summary>
+      <span class="tid">${c.id}</span>
+      <span class="tdesc"><span class="frm">${c.from}<span class="ar">→</span>${c.to}</span>
+        <span class="lv">L${c.level} · ${esc(tDom(c.domain))} · ${esc(tDif(c.difficulty))}</span>
+        ${c.challenges.map((x) => `<span class="chl" title="${esc(x)}">${esc(tChal(x))}</span>`).join("")}</span>
+      ${ctCaseStrip(c.id)}
+      <span class="meter"><span class="mt"><span class="mf" style="width:${(n / NM * 100).toFixed(1)}%"></span></span>
+        <span class="mn">${n}/${NM}</span></span>
+    </summary>
+    <div class="tstbody">${caseBody(c, null, null)}
+      <div class="mini"><div class="mh"><span>${T("howModels")}</span></div>
+        <div class="verdicts" data-verdicts="${c.id}"><div class="hint" style="padding:10px 12px">${T("loading")}</div></div></div>
+    </div></details>`;
+}
+
+/** The sticky legend: the chosen models' glyphs sitting over their own columns. */
+function ctHead() {
+  const ms = ctModels();
+  const host = $("#ct-head");
+  // Case rows sit two containers deep when grouped and at the top level when flat; match the inset so
+  // each glyph stays over its own column of squares in either mode.
+  host.style.paddingRight = CT.mode === "flat" ? "13px" : "36px";
+  if (!ms.length) { host.innerHTML = `<span class="lbl">${isFr() ? "aucun modèle choisi — les colonnes sont vides" : "no models chosen — the columns are empty"}</span>`; return; }
+  host.innerHTML = `<span class="lbl">${ms.length} ${ms.length === 1 ? T("models") : T("modelsPl")} · ${isFr() ? "un carré par modèle" : "one square per model"}</span>`
+    + `<span class="strip">${ms.map((m) => `<span title="#${RANK.get(m.slug)} ${esc(m.name)}">${mark(m, 15)}</span>`).join("")}</span>`
+    + `<span class="mtcap">${isFr() ? "les 60" : "all 60"}</span>`;
+}
+
+function renderTree() {
+  const list = ctFilter();
+  const host = $("#ctree");
+  $("#c-count").textContent = `${list.length} ${list.length === 1 ? T("cases") : T("casesPl")}`;
+  $("#c-expand").hidden = CT.mode === "flat";
+  ctHead();
+  $("#ct-more").innerHTML = "";
+  if (!list.length) { host.innerHTML = `<p class="hint ctempty">${T("noMatch")}</p>`; return; }
+  if (CT.mode === "flat") { renderFlat(list); return; }
+
+  host.innerHTML = DIRS.map((d) => {
+    const inDir = list.filter((c) => `${c.from}>${c.to}` === d);
+    if (!inDir.length) return "";
+    const levels = [...new Set(inDir.map((c) => c.level))].sort((a, b) => a - b);
+    return `<details class="acc" data-dir="${d}">
+      <summary>
+        <span class="accnm">${d.split(">")[0]}<span class="ar"> → </span>${d.split(">")[1]}</span>
+        <span class="accsub">${inDir.length} ${T("casesPl")}</span>
+        ${ctGroupStrip(inDir)}
+        ${ctMeter(groupSolved(inDir), inDir.length * NM)}
+      </summary>
+      <div class="accbody">${levels.map((L) => {
+        const inLvl = inDir.filter((c) => c.level === L);
+        return `<details class="lvl" data-dir="${d}" data-lvl="${L}">
+          <summary><span class="lvlnm">L${L} · ${esc(tLvlLabel(L, META.levels.find((x) => x.n === L)?.label ?? ""))}</span>
+            <span class="accsub">${inLvl.length} ${T("casesPl")}</span>
+            ${ctGroupStrip(inLvl)}
+            ${ctMeter(groupSolved(inLvl), inLvl.length * NM)}</summary>
+          <div class="lvlbody"><span class="hint">${T("loading")}</span></div></details>`;
+      }).join("")}</div></details>`;
+  }).join("");
+}
+
+/**
+ * Flat mode: every matching case, in the DOM, in document order — Ctrl-F finds all of it.
+ *
+ * The first chunk paints straight away and the rest is appended a chunk per frame, so the list is
+ * complete a moment later without ever blocking on a 2 025-row build. Deliberately NOT scroll-driven:
+ * lazy loading tied to scroll position leaves rows that exist only if you happen to scroll to them,
+ * which breaks in-page search and printing — and "all the lines" is the whole point of this mode.
+ */
+const CHUNK = 250;
+function renderFlat(list) {
+  const host = $("#ctree");
+  host.innerHTML = "";
+  CT.rendered = 0;
+  const gen = ++CT.gen;                    // a newer render cancels this fill loop
+  const more = $("#ct-more");
+
+  const step = () => {
+    const slice = list.slice(CT.rendered, CT.rendered + CHUNK);
+    host.insertAdjacentHTML("beforeend", slice.map(ctCaseRow).join(""));
+    CT.rendered += slice.length;
+    if (CT.rendered >= list.length) {
+      more.innerHTML = `<p class="hint ctmore">${isFr() ? `${list.length} cas — liste complète`
+                                                        : `${list.length} cases — the whole list`}</p>`;
+      return;
+    }
+    more.innerHTML = `<p class="hint ctmore">${CT.rendered} / ${list.length}…</p>`;
+    // setTimeout, not requestAnimationFrame: rAF is throttled to zero in a backgrounded or headless
+    // tab, which would leave the list permanently half-built.
+    setTimeout(() => { if (CT.gen === gen) step(); }, 0);
+  };
+  more.innerHTML = "";
+  step();
+}
+
+// A level's cases are built the first time it opens — 2 025 rows up front would be a wasted render.
+$("#ctree").addEventListener("toggle", (e) => {
+  const det = e.target;
+  if (!det.matches("details.lvl") || !det.open || det.dataset.done) return;
+  det.dataset.done = "1";
+  const list = ctFilter().filter((c) => `${c.from}>${c.to}` === det.dataset.dir && String(c.level) === det.dataset.lvl);
+  det.querySelector(".lvlbody").innerHTML = list.map(ctCaseRow).join("");
+  wireCaseBodies(det);
+}, true);
+
+// One delegated listener for the whole matrix rather than a handler per square (there can be 10 000).
+$("#ctree").addEventListener("mousemove", (e) => {
+  const sq = e.target.closest?.(".sq");
+  if (!sq || !sq.dataset.m) return hideTip();
+  const m = BOARD.find((x) => x.slug === sq.dataset.m);
+  if (!m) return;
+  const rate = sq.dataset.rate;
+  showTip(e, `<b>${esc(m.model)}</b><span class="r">#${RANK.get(m.slug)} · ${esc(m.provider)}<br>`
+    + (rate !== undefined && rate !== ""
+        ? `${rate}% ${isFr() ? "réussis sur" : "solved of"} ${sq.dataset.n} ${T("casesPl")}`
+        : sq.classList.contains("ok") ? (isFr() ? "réussi" : "solved")
+        : sq.classList.contains("no") ? (isFr() ? "manqué" : "missed")
+        : (isFr() ? "non exécuté" : "not run")) + `</span>`);
+});
+$("#ctree").addEventListener("mouseleave", hideTip);
+
+// Filling a per-case verdict table means touching all 60 model files, so only do it when the case opens.
+document.addEventListener("toggle", async (e) => {
+  const det = e.target;
+  if (!det.matches("details.tst") || !det.open) return;
+  const host = det.querySelector("[data-verdicts]");
+  if (!host || host.dataset.done) return;
+  host.dataset.done = "1";
+  await fillVerdicts(host, host.dataset.verdicts);
+}, true);
+
+async function fillVerdicts(host, id) {
+  const rows = await Promise.all(BOARD.map(async (m) => {
+    const d = await modelRows(m.slug);
+    const r = d?.rows?.find((x) => x.id === id);
+    return r ? { m, r } : null;
+  }));
+  const ok = rows.filter(Boolean);
+  // Leaderboard order, so the column reads the same way everywhere on the site.
+  ok.sort((a, b) => RANK.get(a.m.slug) - RANK.get(b.m.slug));
+
+  /**
+   * One cell = one verdict, and the button next to it opens THAT mode's reply. A single shared
+   * button was the bug: clicking beside a ✗ in the explained column opened the plain reply, which
+   * was correct, so the ✗ looked like a mistake.
+   */
+  const cell = (m, r, mode) => {
+    const raw = mode === "p" ? r.p : r.e;
+    const err = notRun(m.slug, mode, id);
+    const text = mode === "p" ? r.pr : r.er;
+    const v = err ? null : raw;
+    const badge = err
+      ? `<span class="vmark" style="color:var(--muted)" title="${esc(err)}">–</span>`
+      : v == null ? `<span class="vmark" style="color:var(--muted)">–</span>`
+      : v & 2 ? `<span class="vmark up">${v & 1 ? "✓✓" : "✓"}</span>`
+              : `<span class="vmark down">✗</span>`;
+    const note = err ? `<span class="hint" title="${esc(err)}">${esc(err)}</span>`
+      : text != null ? `<button class="btn tiny" data-reply="${id}|${m.slug}" data-mode="${mode === "p" ? "plain" : "ex"}">${T("viewReply")}</button>`
+      : `<span class="hint">${T("noReply")}</span>`;
+    return `<td>${badge}</td><td class="lft">${note}</td>`;
+  };
+
+  host.innerHTML = `<table><thead><tr>
+      <th class="lft">#</th><th class="lft">${T("model")}</th>
+      <th>${T("plain")}</th><th class="lft"></th>
+      <th>${T("explained")}</th><th class="lft"></th>
+    </tr></thead><tbody>${ok.map(({ m, r }) => {
+      if (r.pr != null || r.er != null)
+        REPLIES.set(`${id}|${m.slug}`, { model: m.model, id, slug: m.slug,
+                                         plain: r.pr ?? null, ex: r.er ?? null,
+                                         pv: notRun(m.slug, "p", id) ? null : r.p,
+                                         ev: notRun(m.slug, "e", id) ? null : r.e });
+      return `<tr>
+        <td class="lft hint">${RANK.get(m.slug)}</td>
+        <td class="lft"><span class="mname">${mark(m, 18)}<button class="link" data-slug="${m.slug}">${esc(m.model)}</button></span></td>
+        ${cell(m, r, "p")}${cell(m, r, "e")}
+      </tr>`;
+    }).join("")}</tbody></table>`;
+  $$("button.link", host).forEach((b) => b.onclick = () => openModel(b.dataset.slug));
+  $$("[data-reply]", host).forEach((b) => b.onclick = () => showReply(b.dataset.reply, b.dataset.mode));
+}
+
+/** Jump to a case, opening its direction and level on the way. */
+async function openCase(id) {
+  const c = byId.get(id); if (!c) return;
+  show("cases");
+  for (const s of ["#c-dir", "#c-lvl", "#c-dom", "#c-chal", "#c-solve"]) $(s).value = "";
+  $("#c-q").value = "";
+  CT.mode = "grouped";
+  $$("#ct-mode button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.m === "grouped")));
+  await ctLoad();
+  renderTree();
+  const d = `${c.from}>${c.to}`;
+  const dirEl = $(`#ctree details.acc[data-dir="${d}"]`); if (!dirEl) return;
+  dirEl.open = true;
+  const lvlEl = $(`details.lvl[data-dir="${d}"][data-lvl="${c.level}"]`, dirEl); if (!lvlEl) return;
+  lvlEl.open = true;
+  // The level body is filled by the toggle handler above, so wait a frame before reaching into it.
+  requestAnimationFrame(() => {
+    const t = $(`#case-${CSS.escape(id)}`);
+    if (t) { t.open = true; t.scrollIntoView({ block: "center" }); }
+  });
+}
+
+$$("#c-dir,#c-lvl,#c-dom,#c-chal,#c-solve").forEach((s) => s.onchange = renderTree);
+$("#c-q").oninput = renderTree;
+$("#c-expand").onclick = () => {
+  const any = $$("#ctree details.acc").some((d) => !d.open);
+  $$("#ctree details.acc").forEach((d) => d.open = any);
+  $("#c-expand").textContent = any ? T("collapseAll") : T("expandAll");
+};
+$$("#ct-mode button").forEach((b) => b.onclick = () => {
+  CT.mode = b.dataset.m;
+  $$("#ct-mode button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  renderTree();
+});
+
+/**
+ * Fill the case filters. Their first <option> is the translated "Any …" placeholder carried on the
+ * element, so it is preserved and only the value options are rebuilt on a language switch.
+ */
+function fillSelects() {
+  const first = (sel) => sel.options[0].outerHTML;
+  const opts = {
+    "#c-dir": () => DIRS.map((d) => `<option value="${d}">${dirLabel(d)}</option>`).join(""),
+    "#c-lvl": () => META.levels.map((l) => `<option value="${l.n}">L${l.n} — ${esc(tLvlLabel(l.n, l.label))}</option>`).join(""),
+    "#c-dom": () => META.domains.map((d) => `<option value="${d}">${esc(tDom(d))}</option>`).join(""),
+    "#c-chal": () => META.challenges.map((c) => `<option value="${c.key}" title="${c.key}">${esc(tChal(c.key))}</option>`).join(""),
+  };
+  for (const sel of Object.keys(opts)) {
+    const el = $(sel), keep = el.value;
+    el.innerHTML = first(el) + opts[sel]();
+    el.value = keep;
+  }
+}
+fillSelects();
+
+// ── the tab's own model picker ─────────────────────────────────────────
+function ctFillPicker() {
+  const wrap = $("#ct-pick .mslist");
+  wrap.innerHTML = [...BOARD].sort((a, b) => RANK.get(a.slug) - RANK.get(b.slug)).map((m) => `
+    <label class="msrow" data-name="${esc(m.name.toLowerCase())}">
+      <input type="checkbox" value="${m.slug}"${CT.sel.has(m.slug) ? " checked" : ""}>
+      ${mark(m, 18)}<span class="msnm">${esc(m.model)}</span>
+      <span class="mssc chip ${band(best(m))}">${best(m)}</span>
+    </label>`).join("");
+}
+async function ctApplySelection() {
+  $("#ct-pick summary").innerHTML = `${isFr() ? "Choisir les modèles" : "Pick models"} <span class="selcount">${CT.sel.size}</span>`;
+  await ctLoad();
+  renderTree();
+}
+$("#ct-pick").addEventListener("toggle", () => { if ($("#ct-pick").open && !$("#ct-pick .mslist").children.length) ctFillPicker(); });
+$("#ct-pick .mslist").onchange = (e) => {
+  const cb = e.target;
+  if (cb.type !== "checkbox") return;
+  cb.checked ? CT.sel.add(cb.value) : CT.sel.delete(cb.value);
+  ctApplySelection();
+};
+$("#ct-pick .msq").oninput = (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  $$("#ct-pick .msrow").forEach((r) => r.hidden = !!q && !r.dataset.name.includes(q));
+};
+$$("#ct-pick [data-ctpreset]").forEach((b) => b.onclick = () => {
+  CT.sel = new Set(ctPreset(b.dataset.ctpreset));
+  $$("#ct-pick .mslist input").forEach((cb) => cb.checked = CT.sel.has(cb.value));
+  ctApplySelection();
+});
+
+// ══ methodology tables ═════════════════════════════════════════════════
+function buildMethodTables() {
+  const fr = isFr();
+  $("#m-levels").innerHTML =
+    `<thead><tr><th>${fr ? "Niveau" : "Level"}</th><th>${fr ? "Forme" : "Shape"}</th><th>${fr ? "Signification" : "Meaning"}</th></tr></thead><tbody>`
+    + META.levels.map((l) => {
+        const [lab, desc] = fr ? (LVL_FR[l.n] ?? [l.label, l.desc]) : [l.label, l.desc];
+        return `<tr><td class="mono">L${l.n}</td><td>${esc(lab)}</td><td>${esc(desc)}</td></tr>`;
+      }).join("") + "</tbody>";
+  $("#m-chal").innerHTML =
+    `<thead><tr><th>${fr ? "Contrainte" : "Constraint"}</th><th>${fr ? "Ce qu'elle demande" : "What it asks"}</th></tr></thead><tbody>`
+    + META.challenges.map((c) => `<tr><td class="mono">${c.key}</td><td>${esc(fr ? (CHAL_FR_DESC[c.key] ?? c.desc) : c.desc)}</td></tr>`).join("") + "</tbody>";
+  $("#m-dom").textContent = META.domains.map(tDom).join(" · ");
+}
+
+// ── language plumbing ──────────────────────────────────────────────────
+function applyLang() {
+  root.lang = LANG;
+  $("#lang").textContent = isFr() ? "EN" : "FR";
+  for (const el of $$("[data-en]")) { const v = el.getAttribute(`data-${LANG}`); if (v != null) el.innerHTML = v; }
+  for (const el of $$("[data-ph-en]")) { const v = el.getAttribute(`data-ph-${LANG}`); if (v != null) el.placeholder = v; }
+  document.title = isFr() ? "format-bench — aperçu de l'explorateur" : "format-bench — explorer preview";
+}
+function rerenderAll() {
+  fillSelects();
+  buildMethodTables();
+  if (overviewDrawn) drawOverview();
+  if ($("#mgrid").children.length) renderModelGrid();
+  if ($("#ctree").children.length) { $("#ct-pick .mslist").innerHTML = ""; ctApplySelection(); }
+  if (CURMODEL && $("#v-model").classList.contains("on")) openModel(CURMODEL.slug);
+}
+$("#lang").onclick = () => {
+  LANG = isFr() ? "en" : "fr";
+  localStorage.setItem("fb-lang", LANG);
+  applyLang();
+  $("#s-cases").textContent = CASES.length.toLocaleString(isFr() ? "fr-FR" : "en-US");
+  rerenderAll();
+};
+
+buildMethodTables();
+applyLang();
+drawOverview();
+</script>
+</body>
+</html>

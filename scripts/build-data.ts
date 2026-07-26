@@ -13,7 +13,7 @@
  *
  * Run: bun scripts/build-data.ts
  */
-import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, statSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, writeFileSync, mkdirSync, statSync, rmSync, copyFileSync } from "node:fs";
 import { join } from "node:path";
 import { ROOT, PROVIDERS } from "../providers.js";
 import { datasetSha } from "../run.js";
@@ -222,12 +222,58 @@ function build() {
     excluded: casualties,
   }, null, 2));
 
+  // ── the three derived files the explorer needs ──────────────────────────────────────────
+  // They live here rather than in separate scripts because build() wipes OUT: anything written
+  // outside this function disappears on the next regen.
+
+  // Brand marks are a curated source asset (scripts/model-marks.json), not something derived from runs.
+  copyFileSync(join(ROOT, "scripts", "model-marks.json"), join(OUT, "logos.json"));
+
+  // Per-case difficulty: how many models solved each case. Precomputed so the explorer does not have to
+  // fetch every per-model file before it can paint a single row.
+  const stat: Record<string, [number, number, number, number, number]> = {};
+  for (const c of cases) stat[c.id!] = [0, 0, 0, 0, 0];
+  for (const m of board) {
+    const rows = JSON.parse(readFileSync(join(OUT, "models", `${m.slug}.json`), "utf8")).rows as any[];
+    for (const r of rows) {
+      const st = stat[r.id]; if (!st) continue;
+      if (r.p != null && r.p & 2) st[0]++;
+      if (r.p != null && r.p & 1) st[1]++;
+      if (r.e != null && r.e & 2) st[2]++;
+      if (r.e != null && r.e & 1) st[3]++;
+      st[4]++;
+    }
+  }
+  writeFileSync(join(OUT, "casestats.json"), JSON.stringify({ models: board.length, stat }));
+
+  // Cases that raised and were written in as a score of 0. An exhausted retry is an infrastructure
+  // failure, not a wrong answer, and must not be shown as one. Only recoverable from runs that kept
+  // a `note` — the compact row format has nowhere to put it.
+  const idByInput = new Map(cases.map((c) => [c.input, c.id!]));
+  const errs: Record<string, any> = {};
+  let errRows = 0;
+  for (const m of board) {
+    for (const [mode, file] of [["p", "convert-plain.json"], ["e", "convert-ex.json"]] as const) {
+      const path = join(ROOT, "runs", m.provider, m.model, file);
+      if (!existsSync(path)) continue;
+      const rows = (JSON.parse(readFileSync(path, "utf8")).results ?? []) as any[];
+      const bad = rows.filter((r) => typeof r.note === "string" && r.note.startsWith("ERROR"));
+      if (!bad.length) continue;
+      const ids = bad.map((r) => r.id ?? idByInput.get(r.input)).filter(Boolean);
+      errRows += ids.length;
+      (errs[m.slug] ??= {})[mode] = ids;
+      errs[m.slug][mode === "p" ? "pNote" : "eNote"] = bad[0].note.match(/HTTP \d+/)?.[0] ?? "error";
+    }
+  }
+  writeFileSync(join(OUT, "errors.json"), JSON.stringify(errs));
+
   const mb = (n: number) => (n / 1e6).toFixed(2) + " MB";
   const size = (f: string) => statSync(join(OUT, f)).size;
   console.log(`docs/data written:`);
   console.log(`  board.json  ${mb(size("board.json"))}  (${board.length} models)`);
   console.log(`  cases.json  ${mb(size("cases.json"))}  (${cases.length} cases)`);
   console.log(`  models/     ${readdirSync(join(OUT, "models")).length} files`);
+  console.log(`  logos · casestats · errors.json  (${errRows} un-answered cases flagged)`);
   if (casualties.length) console.log(`  excluded ${casualties.length} truncated run(s): ${casualties.map((c) => `${c.provider}/${c.model}[${c.mode}]`).join(", ")}`);
 }
 
